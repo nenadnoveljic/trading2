@@ -1,3 +1,4 @@
+*.csv
 myenv/
 config.ini
 __pycache__/
