@@ -106,7 +106,7 @@ COMCL.BO,Comfort Commotrade Ltd,Capital Markets,Financial Services,83.81,1.36,6.
 EXCOF,Exco Technologies Ltd,Auto Parts,Consumer Cyclical,7.45,1.53,2.83,0.56,2.80,4.22,0.26,0.34,3.9600,500
 S56.SI,Samudera Shipping Line Ltd,Marine Shipping,Industrials,14.92,1.64,3.82,0.56,3.33,12.42,0.47,0.61,0.830,728200
 200581.SZ,Weifu High-Technology Group Co Ltd B,Auto Parts,Consumer Cyclical,5.14,1.43,1.80,0.56,11.64,21.41,0.04,0.96,12.18,231517
-XTC.TO,Exco Technologies Ltd,Auto Parts,Consumer Cyclical,7.43,1.53,2.83,0.56,2.79,4.45,0.26,0.35,5.94,31585
+XTC.TO,Exco Technologies Ltd,Auto Parts,Consumer Cyclical,7.43,1.53,2.83,0.56,2.79,4.45,0.26,0.35,5.93,33185
 5026.KL,MHC Plantations Bhd,Farm Products,Consumer Defensive,12.55,2.32,2.59,0.56,2.57,4.16,0.17,0.38,0.97,18400
 ELFIF,E-L Financial Corp Ltd,Insurance - Life,Financial Services,,3.32,1.95,0.57,10.50,10.41,0.07,1.32,975.0505,10
 ELF.TO,E-L Financial Corp Ltd,Insurance - Life,Financial Services,,3.32,1.95,0.57,10.57,10.83,0.07,1.38,1375.00,712
@@ -168,7 +168,7 @@ CICOY,COSCO SHIPPING Holdings Co Ltd ADR,Marine Shipping,Industrials,25.03,2.12,
 AGMJF,Algoma Central Corp,Marine Shipping,Industrials,10.53,1.69,0.73,0.70,3.98,-87.06,0.46,0.88,11.1050,1000
 ADRO.JK,Alamtri Resources Indonesia,Thermal Coal,Energy,35.36,1.36,4.02,0.71,1.77,3.10,0.12,1.81,1900.00,64060200
 HAL.AS,HAL Trust,Asset Management,Financial Services,10.45,1.85,1.37,0.71,3.92,8.55,0.33,0.84,115.80,6437
-CICOF,COSCO SHIPPING Holdings Co Ltd,Marine Shipping,Industrials,25.03,2.12,1.68,0.71,19.53,-14.04,0.32,0.71,1.4569,120
+CICOF,COSCO SHIPPING Holdings Co Ltd,Marine Shipping,Industrials,25.03,2.12,1.68,0.72,19.53,-14.14,0.32,0.72,1.6900,3007
 FUJHF,Subaru Corp,Auto Manufacturers,Consumer Cyclical,9.85,1.82,2.63,0.72,3.07,5.43,0.14,0.42,18.6000,5431
 TPED.SI,PTT Exploration & Production PCL DR,Oil & Gas E&P,Energy,42.01,1.80,2.11,0.72,2.39,4.20,0.24,1.28,3.850,6100
 3339.HK,Lonking Holdings Ltd,Farm & Heavy Construction Machinery,Industrials,9.92,1.45,2.64,0.73,5.25,5.91,0.00,0.76,1.95,7799065
@@ -176,7 +176,7 @@ MPMX.JK,Mitra Pinasthika Mustika,Auto & Truck Dealerships,Consumer Cyclical,2.51
 0590.HK,Luk Fook Holdings International Ltd,Luxury Goods,Consumer Cyclical,11.90,1.29,3.59,0.73,4.38,5.09,0.15,0.73,16.92,1845000
 PANS.JK,Panin Sekuritas,Capital Markets,Financial Services,34.84,1.33,2.53,0.74,4.48,4.94,0.03,3.42,1510.00,51900
 0150.HK,Hypebeast Ltd,Internet Content & Information,Communication Services,7.41,1.32,3.97,0.74,3.64,3.95,0.07,0.43,0.172,688800
-BYLOF,Big Yellow Group Plc,REIT - Industrial,Real Estate,62.45,1.17,0.31,0.74,16.11,16.84,0.15,9.47,13.5000,800
+BYLOF,Big Yellow Group Plc,REIT - Industrial,Real Estate,62.45,1.17,0.31,0.74,16.11,16.84,0.15,9.47,13.4500,1800
 BYG.L,Big Yellow Group Plc,REIT - Industrial,Real Estate,62.46,1.17,0.31,0.74,16.60,16.60,0.15,9.33,1020.00,166932
 AIAGY,Aurubis AG ADR,Metal Fabrication,Industrials,4.40,1.74,2.13,0.74,4.22,39.58,0.08,0.20,42.9800,100
 7235.KL,Superlon Holdings Bhd,Building Products & Equipment,Industrials,11.12,1.28,6.98,0.74,11.01,11.67,0.17,0.88,0.74,45500
@@ -184,7 +184,7 @@ AIAGY,Aurubis AG ADR,Metal Fabrication,Industrials,4.40,1.74,2.13,0.74,4.22,39.5
 SPKOY,SINOPEC Kantons Holdings Ltd ADR,Oil & Gas Midstream,Energy,23.45,1.02,43.55,0.74,16.90,20.47,0.00,18.55,24.1500,162
 PITPY,Indocement Tunggal Prakarsa ADR,Building Materials,Basic Materials,12.63,1.38,1.45,0.74,5.21,5.88,0.11,0.88,3.0550,783
 MTU.PA,Manitou BF S.A.,Farm & Heavy Construction Machinery,Industrials,8.80,2.15,1.70,0.75,3.59,9.52,0.03,0.25,20.30,24192
-FUJHY,Subaru Corp ADR,Auto Manufacturers,Consumer Cyclical,9.85,1.82,2.63,0.75,3.07,5.64,0.14,0.44,9.0600,93831
+FUJHY,Subaru Corp ADR,Auto Manufacturers,Consumer Cyclical,9.85,1.82,2.63,0.75,3.07,5.64,0.14,0.44,9.0620,100052
 LKHLY,Lonking Holdings Ltd ADR,Farm & Heavy Construction Machinery,Industrials,9.92,1.45,2.64,0.75,5.77,6.16,0.00,0.79,12.9500,300
 KKGI.JK,Resource Alam Indonesia,Thermal Coal,Energy,19.85,1.30,3.24,0.76,2.38,2.61,0.02,0.38,380.00,6321400
 0012.KL,Three-A Resources Bhd,Packaged Foods,Consumer Defensive,8.93,1.12,7.88,0.76,6.36,7.89,0.01,0.66,0.765,159600
@@ -213,11 +213,11 @@ BXP.L,Beximco Pharmaceuticals Ltd Gdr,Drug Manufacturers - Specialty & Generic,H
 SFFYF,Signify N.V.,Electrical Equipment & Parts,Industrials,7.76,2.38,1.22,0.82,5.18,6.39,0.49,0.41,22.6500,2455
 ITAYY,Indo Tambangraya Megah ADR,Thermal Coal,Energy,20.75,1.25,4.48,0.82,3.62,4.38,0.04,0.69,2.5100,100
 1571.HK,Xin Point Holdings Ltd,Auto Parts,Consumer Cyclical,21.82,1.25,2.81,0.82,3.36,4.39,0.04,0.89,3.23,1183159
-PUTKY,United Tractors ADR,Other Industrial Metals & Mining,Basic Materials,20.21,1.82,1.54,0.85,2.79,4.84,0.22,0.58,26.9000,5369
+PUTKY,United Tractors ADR,Other Industrial Metals & Mining,Basic Materials,20.21,1.82,1.54,0.85,2.79,4.84,0.22,0.58,26.7735,6616
 SDL.NZ,Solution Dynamics Ltd,Software - Application,Technology,8.69,1.69,2.27,0.85,1.54,1.45,0.13,0.23,0.64,558
 2166.HK,Smart-Core Holdings Ltd,Electronics & Computer Distribution,Technology,2.22,1.77,1.84,0.86,4.31,3.84,0.33,0.18,1.80,438000
-BWLP,BW LPG Ltd,Marine Shipping,Industrials,15.06,1.67,1.34,0.86,2.00,2.36,0.40,0.36,10.09,463440
-BWLP.IX,BW LPG Ltd,Marine Shipping,Industrials,15.06,1.67,1.34,0.86,2.00,2.36,0.40,0.36,10.09,452886
+BWLP,BW LPG Ltd,Marine Shipping,Industrials,15.06,1.67,1.34,0.86,2.00,2.36,0.40,0.36,10.08,506554
+BWLP.IX,BW LPG Ltd,Marine Shipping,Industrials,15.06,1.67,1.34,0.86,2.00,2.36,0.40,0.36,10.08,494974
 CGS.L,Castings Plc,Specialty Industrial Machinery,Industrials,6.75,1.28,3.53,0.87,15.45,,0.01,0.55,249.00,1552
 0811.HK,Xinhua Winshare Publishing & Media Co Ltd,Publishing,Communication Services,11.79,1.57,1.79,0.88,7.01,7.82,0.01,1.04,11.22,1261000
 900948.SS,Inner Mongolia Yitai Coal Co Ltd B,Thermal Coal,Energy,19.39,1.78,1.30,0.88,3.80,4.22,0.31,0.80,1.99,2032254

@@ -97,7 +97,7 @@ try:
     
     # Locate the username text field and enter the username
     # Use the enter_username function to input the username
-    enter_username(driver, "nenad.noveljic@gmail.com")
+    enter_username(driver, user)
     
     check_captcha(driver)
     sleep_random()
