@@ -1,4 +1,6 @@
-*.csv
+PB.csv
+PE.csv
+portfolio.csv
 myenv/
 config.ini
 __pycache__/
