@@ -1,13 +1,8 @@
 import pandas as pd
 import os
 import datetime
-NAME = 'Name'
-PE = 'P / E'
-PB = 'Price / Book Ratio'
-PE_PB = 'PE*PB'
-SYMBOL = 'Symbol'
+from constants import NAME, PE, PB, PE_PB, SYMBOL, DIR, PORTFOLIO_FILE
 
-DIR = os.path.dirname(os.path.abspath(__file__))
 pe_file = os.path.join(DIR, 'PE.csv')
 pb_file = os.path.join(DIR, 'PB.csv')
 
@@ -18,7 +13,6 @@ merged_df = pd.merge(pe_df, pb_df, on=SYMBOL)
 merged_df[PE_PB] = merged_df[PE] * merged_df[PB]
 
 # Filter out stocks that are already in the portfolio
-portfolio_file = os.path.join(DIR, 'portfolio.csv')
 disqualified_file = os.path.join(DIR, 'disqualified.csv')
 def filter_out_stocks_from_file(df, file_path):
     if os.path.exists(file_path):
@@ -27,7 +21,7 @@ def filter_out_stocks_from_file(df, file_path):
     return df
 
 filtered_df = filter_out_stocks_from_file(merged_df, disqualified_file)
-filtered_df = filter_out_stocks_from_file(filtered_df, portfolio_file)
+filtered_df = filter_out_stocks_from_file(filtered_df, PORTFOLIO_FILE)
 
 current_year = datetime.datetime.now().year
 for year in range(current_year - 10, current_year):
