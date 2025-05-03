@@ -154,7 +154,8 @@ try:
 
     download(driver, get_screener_url("fund"), get_screener_download_url(), "MyValue.csv", "PE")
     download(driver, get_screener_url("fin"), get_screener_download_url(), "MyValue.csv", "PB")
-    download(driver,f"{ROOT_URL}/tools/portfolio.php?pid=10810", f"{ROOT_URL}//tools/csv.csv?pid=10810", "MyPortfolio.csv", "portfolio")
+    download(driver,f"{ROOT_URL}/tools/portfolio.php?view=fund&bd=&sorting=company&plt=a", f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fund", "MyPortfolio.csv", "portfolio")  
+    download(driver,f"{ROOT_URL}/tools/portfolio.php?view=fin&bd=&sorting=company&plt=a", f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fin", "MyPortfolio.csv", "portfolio_PB")  
 
 finally:
     # Close the browser
