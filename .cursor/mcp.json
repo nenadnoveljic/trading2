@@ -1,7 +1,10 @@
 {
   "mcpServers": {
-    "Datadog Extension": {
-      "url": "http://localhost:52721/sse"
+    "Datadog (alpha)": {
+      "command": "/Users/nenad.noveljic/.cursor/extensions/datadog.datadog-vscode-2.3.1/resources/scripts/mcp/stdio-app.mjs",
+      "args": [
+        "49419"
+      ]
     }
   }
 }

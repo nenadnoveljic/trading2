@@ -1,0 +1,8 @@
+import os
+from lib import DIR, get_merged_pd, PE, PB, PE_PB
+
+df = get_merged_pd(os.path.join(DIR, 'portfolio.csv'), os.path.join(DIR, 'portfolio_PB.csv'))
+
+print(df[df.EPS < 0])
+
+print(df[(df[PE] > 10) | (df[PB] > 1)].sort_values(by=PE_PB, ascending=False))
