@@ -24,6 +24,6 @@ for year in range(current_year - 10, current_year):
         
 
 sorted_df = filtered_df.sort_values(by=PE_PB, ascending=True)
-print(sorted_df.head(10))
+print(sorted_df.head(20))
 print(len(sorted_df))
       
