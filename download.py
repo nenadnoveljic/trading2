@@ -140,7 +140,9 @@ try:
     check_captcha(driver)
 
     
-    password_field.send_keys(password)
+    for char in password:
+        password_field.send_keys(char)
+        time.sleep(random.uniform(0.1, 0.3))
 
     sleep_random()
     check_captcha(driver)
