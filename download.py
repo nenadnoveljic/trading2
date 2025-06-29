@@ -11,6 +11,7 @@ import random
 
 DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
 ROOT_URL = "https://www.marketinout.com"
+TOOLS_ROOT_URL = f"{ROOT_URL}/tools"
 
 def check_captcha(driver: webdriver) -> None:
     try:
@@ -25,7 +26,10 @@ def get_screener_url(view: str) -> str:
     return f"{ROOT_URL}/stock-screener/stocks.php?f=1&screen_id=413136&view={view}"
 
 def get_portfolio_url(view: str) -> str:
-    return f"{ROOT_URL}/tools/portfolio.php?view={view}&bd=&sorting=company&plt=a"
+    return f"{TOOLS_ROOT_URL}/portfolio.php?view={view}&bd=&sorting=company&plt=a"
+
+def get_portfolio_download_url(view: str) -> str:
+    return f"{TOOLS_ROOT_URL}/csv.csv?pid=10810&view={view}"
 
 def get_screener_download_url() -> str:
     return f"{ROOT_URL}/stock-screener/csv_stocks.csv?f=1&screen_id=413136"
@@ -160,8 +164,8 @@ try:
 
     download(driver, get_screener_url("fund"), get_screener_download_url(), "MyValue.csv", "PE")
     download(driver, get_screener_url("fin"), get_screener_download_url(), "MyValue.csv", "PB")
-    download(driver,get_portfolio_url("fund"), f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fund", "MyPortfolio.csv", "portfolio")  
-    download(driver,get_portfolio_url("fin"), f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fin", "MyPortfolio.csv", "portfolio_PB")  
+    download(driver, get_portfolio_url("fund"), get_portfolio_download_url("fund"), "MyPortfolio.csv", "portfolio")
+    download(driver,get_portfolio_url("fin"), get_portfolio_download_url("fin"), "MyPortfolio.csv", "portfolio_PB")  
 
 finally:
     # Close the browser
