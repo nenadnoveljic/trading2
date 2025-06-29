@@ -24,6 +24,9 @@ def check_captcha(driver: webdriver) -> None:
 def get_screener_url(view: str) -> str:
     return f"{ROOT_URL}/stock-screener/stocks.php?f=1&screen_id=413136&view={view}"
 
+def get_portfolio_url(view: str) -> str:
+    return f"{ROOT_URL}/tools/portfolio.php?view={view}&bd=&sorting=company&plt=a"
+
 def get_screener_download_url() -> str:
     return f"{ROOT_URL}/stock-screener/csv_stocks.csv?f=1&screen_id=413136"
     
@@ -157,8 +160,8 @@ try:
 
     download(driver, get_screener_url("fund"), get_screener_download_url(), "MyValue.csv", "PE")
     download(driver, get_screener_url("fin"), get_screener_download_url(), "MyValue.csv", "PB")
-    download(driver,f"{ROOT_URL}/tools/portfolio.php?view=fund&bd=&sorting=company&plt=a", f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fund", "MyPortfolio.csv", "portfolio")  
-    download(driver,f"{ROOT_URL}/tools/portfolio.php?view=fin&bd=&sorting=company&plt=a", f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fin", "MyPortfolio.csv", "portfolio_PB")  
+    download(driver,get_portfolio_url("fund"), f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fund", "MyPortfolio.csv", "portfolio")  
+    download(driver,get_portfolio_url("fin"), f"{ROOT_URL}//tools/csv.csv?pid=10810&view=fin", "MyPortfolio.csv", "portfolio_PB")  
 
 finally:
     # Close the browser
