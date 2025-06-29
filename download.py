@@ -8,6 +8,7 @@ import time
 from selenium.common.exceptions import NoSuchElementException
 from shutil import move
 import random
+from report_types import ReportType
 
 DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
 ROOT_URL = "https://www.marketinout.com"
@@ -161,11 +162,11 @@ try:
     WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.XPATH, '//a[@href="/home/my_account.php"]'))
     )
-
-    download(driver, get_screener_url("fund"), get_screener_download_url(), "MyValue.csv", "PE")
-    download(driver, get_screener_url("fin"), get_screener_download_url(), "MyValue.csv", "PB")
-    download(driver, get_portfolio_url("fund"), get_portfolio_download_url("fund"), "MyPortfolio.csv", "portfolio")
-    download(driver,get_portfolio_url("fin"), get_portfolio_download_url("fin"), "MyPortfolio.csv", "portfolio_PB")  
+    
+    download(driver, get_screener_url(ReportType.FUND.value), get_screener_download_url(), "MyValue.csv", "PE")
+    download(driver, get_screener_url(ReportType.FIN.value), get_screener_download_url(), "MyValue.csv", "PB")
+    download(driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", "portfolio")
+    download(driver, get_portfolio_url(ReportType.FIN.value), get_portfolio_download_url(ReportType.FIN.value), "MyPortfolio.csv", "portfolio_PB")
 
 finally:
     # Close the browser
