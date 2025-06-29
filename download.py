@@ -26,10 +26,10 @@ def check_captcha(driver: webdriver) -> None:
 def get_screener_url(view: str) -> str:
     return f"{ROOT_URL}/stock-screener/stocks.php?f=1&screen_id=413136&view={view}"
 
-def get_portfolio_url(view: str) -> str:
+def get_portfolio_url(view: ReportType) -> str:
     return f"{TOOLS_URL}/portfolio.php?view={view}&bd=&sorting=company&plt=a"
 
-def get_portfolio_download_url(view: str) -> str:
+def get_portfolio_download_url(view: ReportType) -> str:
     return f"{TOOLS_URL}/csv.csv?pid=10810&view={view}"
 
 def get_screener_download_url() -> str:
@@ -109,12 +109,8 @@ try:
     enter_username(driver, user)
     
     check_captcha(driver)
-    sleep_random()
     # Check for captcha before entering username
     check_captcha(driver)
-    
-    # Add a random delay after entering username to mimic human behavior
-    sleep_random()
     
     # Check if there's an error message about invalid captcha
     try:
@@ -145,15 +141,12 @@ try:
         EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='password']"))
     )
     
-    sleep_random()
     check_captcha(driver)
 
-    
     for char in password:
         password_field.send_keys(char)
         time.sleep(random.uniform(0.1, 0.3))
 
-    sleep_random()
     check_captcha(driver)
     # Press the submit button again
     submit_button = driver.find_element(By.NAME, "submit_button")
