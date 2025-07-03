@@ -68,94 +68,16 @@ for filename in os.listdir(DOWNLOAD_DIR):
                 print(f"Failed to remove {filepath}: {e}")
 
 # Set up the web driver (e.g., Chrome)
+# Connect to manually started Chrome browser
 options = webdriver.ChromeOptions()
-options.add_argument('--disable-blink-features=AutomationControlled')
-options.add_experimental_option('excludeSwitches', ['enable-automation'])
-options.add_experimental_option('useAutomationExtension', False)
-options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 driver = webdriver.Chrome(options=options)
 
-def sleep_random():
-    """
-    Sleep for a random amount of time between 1000 and 3000 milliseconds.
-    This helps to avoid detection as a bot by introducing randomized delays.
-    """
-    sleep_time_ms = 1000 + 2000 * random.random()  # Random value between 1000 and 3000 milliseconds
-    time.sleep(sleep_time_ms / 1000)  # Convert milliseconds to seconds for time.sleep
-    return sleep_time_ms
+#time.sleep(5)
+print("Connected! Current page:", driver.title)
+print("Current URL:", driver.current_url)
 
-def enter_username(driver: webdriver, username: str) -> None:
-    """
-    Enter username with human-like typing behavior
-    """
-    username_field = driver.find_element(By.ID, "l")
-    for char in username:
-        username_field.send_keys(char)
-        time.sleep(random.uniform(0.1, 0.3))
-
-try:
-    with open('config.ini', 'r') as config_file:
-        for line in config_file:
-            if line.startswith('password='):
-                password = line.split('=', 1)[1].strip()
-            if line.startswith('user='):
-                user = line.split('=', 1)[1].strip()
-
-    # Open the login page
-    driver.get("https://www.marketinout.com/home/login.php")
-    
-    # Locate the username text field and enter the username
-    # Use the enter_username function to input the username
-    enter_username(driver, user)
-    
-    check_captcha(driver)
-    # Check for captcha before entering username
-    check_captcha(driver)
-    
-    # Check if there's an error message about invalid captcha
-    try:
-        error_message = driver.find_element(By.XPATH, "//div[contains(@class, 'error') or contains(text(), 'Invalid captcha')]")
-        if "captcha" in error_message.text.lower():
-            print("Captcha error detected. Refreshing and trying again...")
-            driver.refresh()
-            # Wait for page to reload
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "l"))
-            )
-            # Re-enter username
-            enter_username(driver, user)
-            check_captcha(driver)
-            sleep_random()
-    except:
-        # No error message found, continue with login
-        pass
-    
-    # Locate and press the submit button
-    submit_button = driver.find_element(By.NAME, "submit_button")
-    submit_button.click()
-    
-    check_captcha(driver)
-    
-    # Wait for the password field to become visible
-    password_field = WebDriverWait(driver, 10).until(
-        EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='password']"))
-    )
-    
-    check_captcha(driver)
-
-    for char in password:
-        password_field.send_keys(char)
-        time.sleep(random.uniform(0.1, 0.3))
-
-    check_captcha(driver)
-    # Press the submit button again
-    submit_button = driver.find_element(By.NAME, "submit_button")
-    submit_button.click()
-    
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, '//a[@href="/home/my_account.php"]'))
-    )
-    
+try:    
     download(driver, get_screener_url(ReportType.FUND.value), get_screener_download_url(), "MyValue.csv", "PE")
     download(driver, get_screener_url(ReportType.FIN.value), get_screener_download_url(), "MyValue.csv", "PB")
     download(driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", "portfolio")
