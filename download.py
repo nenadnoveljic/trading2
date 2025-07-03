@@ -35,6 +35,11 @@ def get_portfolio_download_url(view: ReportType) -> str:
 def get_screener_download_url() -> str:
     return f"{ROOT_URL}/stock-screener/csv_stocks.csv?f=1&screen_id=413136"
     
+def download_portfolio(driver: webdriver) -> None:
+    """Download portfolio data for both FUND and FIN report types"""
+    download(driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", "portfolio")
+    download(driver, get_portfolio_url(ReportType.FIN.value), get_portfolio_download_url(ReportType.FIN.value), "MyPortfolio.csv", "portfolio_PB")
+
 def download(driver: webdriver, url: str, download_url: str, downloaded_file: str, destination: str) -> None:
     driver.get(url)
     # Request the next page within the same session
@@ -80,8 +85,7 @@ print("Current URL:", driver.current_url)
 try:    
     download(driver, get_screener_url(ReportType.FUND.value), get_screener_download_url(), "MyValue.csv", "PE")
     download(driver, get_screener_url(ReportType.FIN.value), get_screener_download_url(), "MyValue.csv", "PB")
-    download(driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", "portfolio")
-    download(driver, get_portfolio_url(ReportType.FIN.value), get_portfolio_download_url(ReportType.FIN.value), "MyPortfolio.csv", "portfolio_PB")
+    download_portfolio(driver)
 
 finally:
     # Close the browser
