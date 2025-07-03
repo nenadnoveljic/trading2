@@ -9,6 +9,7 @@ from selenium.common.exceptions import NoSuchElementException
 from shutil import move
 import random
 from report_types import ReportType
+from lib import get_portfolio_filename, DIR
 
 DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
 ROOT_URL = "https://www.marketinout.com"
@@ -36,9 +37,14 @@ def get_screener_download_url() -> str:
     return f"{ROOT_URL}/stock-screener/csv_stocks.csv?f=1&screen_id=413136"
     
 def download_portfolio(driver: webdriver) -> None:
-    """Download portfolio data for both FUND and FIN report types"""
-    download(driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", "portfolio")
-    download(driver, get_portfolio_url(ReportType.FIN.value), get_portfolio_download_url(ReportType.FIN.value), "MyPortfolio.csv", "portfolio_PB")
+    download(
+        driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", 
+        get_portfolio_filename(ReportType.FUND.value)
+    )
+    download(
+        driver, get_portfolio_url(ReportType.FIN.value), get_portfolio_download_url(ReportType.FIN.value), "MyPortfolio.csv", 
+        get_portfolio_filename(ReportType.FIN.value)
+    )
 
 def download(driver: webdriver, url: str, download_url: str, downloaded_file: str, destination: str) -> None:
     driver.get(url)
@@ -56,7 +62,7 @@ def download(driver: webdriver, url: str, download_url: str, downloaded_file: st
     while not os.path.exists(downloaded_file):
         time.sleep(1)
     move(os.path.join(downloaded_file), 
-         os.path.join(os.path.dirname((os.path.abspath(__file__))), f"{destination}.csv"))
+         os.path.join(os.path.dirname((os.path.abspath(__file__))), f"{destination}"))
 
 regex_csvs = [ re.compile(r"MyValue.*\.csv"), re.compile(r"MyPortfolio.*\.csv")]
 # Iterate through all files in the directory
@@ -83,8 +89,8 @@ print("Connected! Current page:", driver.title)
 print("Current URL:", driver.current_url)
 
 try:    
-    download(driver, get_screener_url(ReportType.FUND.value), get_screener_download_url(), "MyValue.csv", "PE")
-    download(driver, get_screener_url(ReportType.FIN.value), get_screener_download_url(), "MyValue.csv", "PB")
+    download(driver, get_screener_url(ReportType.FUND.value), get_screener_download_url(), "MyValue.csv", "PE.csv")
+    download(driver, get_screener_url(ReportType.FIN.value), get_screener_download_url(), "MyValue.csv", "PB.csv")
     download_portfolio(driver)
 
 finally:

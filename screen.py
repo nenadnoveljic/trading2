@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import datetime
-from lib import DIR, SYMBOL, PORTFOLIO_FILE, PE_PB, get_merged_pd
+from lib import DIR, SYMBOL, PE_PB, get_merged_pd, get_portfolio_filename_with_symbols
 
 merged_df = get_merged_pd(os.path.join(DIR, 'PE.csv'), os.path.join(DIR, 'PB.csv'))
 
@@ -14,7 +14,7 @@ def filter_out_stocks_from_file(df, file_path):
     return df
 
 filtered_df = filter_out_stocks_from_file(merged_df, disqualified_file)
-filtered_df = filter_out_stocks_from_file(filtered_df, PORTFOLIO_FILE)
+filtered_df = filter_out_stocks_from_file(filtered_df, get_portfolio_filename_with_symbols())
 
 current_year = datetime.datetime.now().year
 for year in range(current_year - 10, current_year):

@@ -1,7 +1,7 @@
-import os
-from lib import DIR, get_merged_pd, PE, PB, PE_PB
+from lib import DIR, get_merged_pd, PE, PB, PE_PB, get_portfolio_filename
+from report_types import ReportType
 
-df = get_merged_pd(os.path.join(DIR, 'portfolio.csv'), os.path.join(DIR, 'portfolio_PB.csv'))
+df = get_merged_pd(pe_file=get_portfolio_filename(ReportType.FUND.value), pb_file=get_portfolio_filename(ReportType.FIN.value))
 
 print(df[df.EPS < 0])
 
