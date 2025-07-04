@@ -15,15 +15,6 @@ DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
 ROOT_URL = "https://www.marketinout.com"
 TOOLS_URL = f"{ROOT_URL}/tools"
 
-def check_captcha(driver: webdriver) -> None:
-    try:
-        # TODO: get teh exactl Invalid captcha element
-        page = driver.find_element(By.ID, "captcha-error")
-        if page.is_displayed():
-            raise Exception("Captcha error")
-    except NoSuchElementException:
-        return False
-
 def get_screener_url(view: str) -> str:
     return f"{ROOT_URL}/stock-screener/stocks.php?f=1&screen_id=413136&view={view}"
 
@@ -80,6 +71,7 @@ for filename in os.listdir(DOWNLOAD_DIR):
 
 # Set up the web driver (e.g., Chrome)
 # Connect to manually started Chrome browser
+# "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug &
 options = webdriver.ChromeOptions()
 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 driver = webdriver.Chrome(options=options)
