@@ -5,3 +5,9 @@ portfolio.csv
 myenv/
 config.ini
 __pycache__/
+downloads/*
+*.csv
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

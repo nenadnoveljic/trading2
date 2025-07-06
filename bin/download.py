@@ -1,15 +1,16 @@
 import os
 import re
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
-from selenium.common.exceptions import NoSuchElementException
 from shutil import move
-import random
 from report_types import ReportType
-from lib import get_portfolio_filename, DIR
+from lib import COPIED_DOWNLOADS_DIR, get_portfolio_filename
 
 DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
 ROOT_URL = "https://www.marketinout.com"
@@ -56,8 +57,9 @@ def download(driver: webdriver, url: str, download_url: str, downloaded_file: st
     downloaded_file = os.path.join(DOWNLOAD_DIR, downloaded_file)
     while not os.path.exists(downloaded_file):
         time.sleep(1)
-    move(os.path.join(downloaded_file), 
-         os.path.join(os.path.dirname((os.path.abspath(__file__))), f"{destination}"))
+    destination_file = os.path.join(COPIED_DOWNLOADS_DIR, destination)
+    print(f"Moving {downloaded_file} to {destination_file}")
+    move(downloaded_file, destination_file)
 
 regex_csvs = [ re.compile(r"MyValue.*\.csv"), re.compile(r"MyPortfolio.*\.csv")]
 # Iterate through all files in the directory

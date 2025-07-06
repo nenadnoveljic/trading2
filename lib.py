@@ -8,7 +8,9 @@ PB = 'Price / Book Ratio'
 PE_PB = 'PE*PB'
 SYMBOL = 'Symbol' 
 
-DIR = os.path.dirname(os.path.abspath(__file__))
+COPIED_DOWNLOADS_DIR = os.path.join("..", os.path.dirname(os.path.abspath(__file__)), "downloads")
+DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
+DIR = os.path.join(".", os.path.dirname(os.path.abspath(__file__)))
 
 def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     pe_df = pd.read_csv(pe_file)
@@ -22,7 +24,7 @@ def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     return merged_df
 
 def get_portfolio_filename(view: ReportType) -> str:
-    return os.path.join(DIR, f"portfolio_{view}.csv")
+    return os.path.join(COPIED_DOWNLOADS_DIR, f"portfolio_{view}.csv")
 
 def get_portfolio_filename_with_symbols() -> str:
     return get_portfolio_filename(ReportType.FIN.value)

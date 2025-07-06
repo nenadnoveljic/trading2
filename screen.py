@@ -1,9 +1,10 @@
 import pandas as pd
 import os
 import datetime
-from lib import DIR, SYMBOL, PE_PB, get_merged_pd, get_portfolio_filename_with_symbols
+from lib import DIR,COPIED_DOWNLOADS_DIR, SYMBOL, PE_PB, get_merged_pd, get_portfolio_filename_with_symbols
 
-merged_df = get_merged_pd(os.path.join(DIR, 'PE.csv'), os.path.join(DIR, 'PB.csv'))
+
+merged_df = get_merged_pd(os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv'))
 
 # Filter out stocks that are already in the portfolio
 disqualified_file = os.path.join(DIR, 'disqualified.csv')
