@@ -1,7 +1,8 @@
 import pandas as pd
 import os
 import datetime
-from lib import DIR,COPIED_DOWNLOADS_DIR, SYMBOL, PE_PB, get_merged_pd, get_portfolio_filename_with_symbols
+from lib.downloader import DIR,COPIED_DOWNLOADS_DIR, get_portfolio_filename_with_symbols
+from lib.data import SYMBOL, PE_PB, get_merged_pd
 
 
 merged_df = get_merged_pd(os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv'))

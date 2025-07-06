@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 from shutil import move
 from report_types import ReportType
-from lib import COPIED_DOWNLOADS_DIR, get_portfolio_filename
+from lib.downloader import COPIED_DOWNLOADS_DIR, get_portfolio_filename
 
 DOWNLOAD_DIR = "/Users/nenad.noveljic/Downloads"
 ROOT_URL = "https://www.marketinout.com"

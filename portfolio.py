@@ -1,4 +1,5 @@
-from lib import get_merged_pd, PE, PB, PE_PB, get_portfolio_filename
+from lib.data import get_merged_pd, PE, PB, PE_PB
+from lib.downloader import get_portfolio_filename
 from report_types import ReportType
 
 df = get_merged_pd(pe_file=get_portfolio_filename(ReportType.FUND.value), pb_file=get_portfolio_filename(ReportType.FIN.value))
