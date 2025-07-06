@@ -26,16 +26,20 @@ def get_portfolio_download_url(view: ReportType) -> str:
 
 def get_screener_download_url() -> str:
     return f"{ROOT_URL}/stock-screener/csv_stocks.csv?f=1&screen_id=413136"
+
+def download_single_portfolio_view(driver: webdriver, view: ReportType) -> None:
+    """Download portfolio data for a single report type view"""
+    download(
+        driver, 
+        get_portfolio_url(view.value), 
+        get_portfolio_download_url(view.value), 
+        "MyPortfolio.csv", 
+        get_portfolio_filename(view.value)
+    )
     
 def download_portfolio(driver: webdriver) -> None:
-    download(
-        driver, get_portfolio_url(ReportType.FUND.value), get_portfolio_download_url(ReportType.FUND.value), "MyPortfolio.csv", 
-        get_portfolio_filename(ReportType.FUND.value)
-    )
-    download(
-        driver, get_portfolio_url(ReportType.FIN.value), get_portfolio_download_url(ReportType.FIN.value), "MyPortfolio.csv", 
-        get_portfolio_filename(ReportType.FIN.value)
-    )
+    download_single_portfolio_view(driver, ReportType.FUND)
+    download_single_portfolio_view(driver, ReportType.FIN)
 
 def download(driver: webdriver, url: str, download_url: str, downloaded_file: str, destination: str) -> None:
     driver.get(url)
