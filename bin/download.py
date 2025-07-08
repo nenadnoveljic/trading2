@@ -7,6 +7,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 from shutil import move
 from report_types import ReportType
@@ -75,12 +77,15 @@ for filename in os.listdir(DOWNLOAD_DIR):
             except Exception as e:
                 print(f"Failed to remove {filepath}: {e}")
 
-# Set up the web driver (e.g., Chrome)
+# Set up the web driver with correct ChromeDriver version
 # Connect to manually started Chrome browser
 # "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug &
+
+# Force webdriver-manager to download ChromeDriver version 137 to match the running Chrome session
+service = Service(ChromeDriverManager(driver_version="137").install())
 options = webdriver.ChromeOptions()
 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-driver = webdriver.Chrome(options=options)
+driver = webdriver.Chrome(service=service, options=options)
 
 #time.sleep(5)
 print("Connected! Current page:", driver.title)
