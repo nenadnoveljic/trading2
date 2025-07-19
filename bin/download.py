@@ -43,6 +43,7 @@ def download_single_portfolio_view(driver: webdriver, view: ReportType) -> None:
 def download_portfolio(driver: webdriver) -> None:
     download_single_portfolio_view(driver, ReportType.FUND)
     download_single_portfolio_view(driver, ReportType.FIN)
+    download_single_portfolio_view(driver, ReportType.FINANCIAL_STRENGTH)
 
 def download(driver: webdriver, url: str, download_url: str, downloaded_file: str, destination: str) -> None:
     driver.get(url)
