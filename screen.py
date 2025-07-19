@@ -4,7 +4,7 @@ import datetime
 from lib.downloader import DIR,COPIED_DOWNLOADS_DIR, get_portfolio_filename_with_symbols
 from lib.data import SYMBOL, PE_PB, get_merged_pd
 
-DB_DIR = "."
+DB_DIR = "db"
 
 merged_df = get_merged_pd(os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv'))
 
@@ -21,7 +21,7 @@ filtered_df = filter_out_stocks_from_file(filtered_df, get_portfolio_filename_wi
 
 current_year = datetime.datetime.now().year
 for year in range(current_year - 10, current_year):
-    dividend_file = os.path.join(DIR, f'{year}_first_dividend.csv')
+    dividend_file = os.path.join(DB_DIR, f'{year}_first_dividend.csv')
     if os.path.exists(dividend_file):
         filtered_df = filter_out_stocks_from_file(filtered_df, dividend_file)
         
