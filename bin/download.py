@@ -82,8 +82,8 @@ for filename in os.listdir(DOWNLOAD_DIR):
 # Connect to manually started Chrome browser
 # "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug &
 
-# Force webdriver-manager to download ChromeDriver version 137 to match the running Chrome session
-service = Service(ChromeDriverManager(driver_version="137").install())
+# Force webdriver-manager to download ChromeDriver version 139 to match the running Chrome session
+service = Service(ChromeDriverManager(driver_version="139").install())
 options = webdriver.ChromeOptions()
 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 driver = webdriver.Chrome(service=service, options=options)

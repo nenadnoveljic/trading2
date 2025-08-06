@@ -45,6 +45,6 @@ filtered_df = merged_with_loss
 
 
 sorted_df = filtered_df.sort_values(by=['quartal_loss', PE_PB], ascending=[True, True])
-print(sorted_df.head(25))
+print(sorted_df.head(50))
 print(len(sorted_df))
       
