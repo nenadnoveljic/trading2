@@ -21,8 +21,6 @@ merged_df = pd.merge(df, fs_df, on='Symbol', suffixes=('', '_fs'))
 
 # Work with Piotroski F-Score (common financial strength indicator, scale 0-9)
 if 'Piotroski F-Score' in merged_df.columns:
-    print(f"\n=== Piotroski F-Score Analysis ===")
-    
     # Filter stocks with F-Score < 5 (weaker companies)
     weak_companies = merged_df[merged_df['Piotroski F-Score'] < 5]
     print(f"\n=== Companies with Piotroski F-Score < 5 ({len(weak_companies)} companies) ===")
