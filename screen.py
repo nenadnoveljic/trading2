@@ -9,7 +9,7 @@ DB_DIR = "db"
 merged_df = get_merged_pd(os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv'))
 
 # Filter out stocks that are already in the portfolio
-disqualified_file = os.path.join(DIR, 'disqualified.csv')
+disqualified_file = os.path.join(DB_DIR, 'disqualified.csv')
 def filter_out_stocks_from_file(df, file_path):
     if os.path.exists(file_path):
         exclude_df = pd.read_csv(file_path)
