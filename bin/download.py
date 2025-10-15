@@ -63,6 +63,7 @@ def download(driver: webdriver, url: str, download_url: str, downloaded_file: st
     destination_file = os.path.join(COPIED_DOWNLOADS_DIR, destination)
     print(f"Moving {downloaded_file} to {destination_file}")
     move(downloaded_file, destination_file)
+    print(f"Moved {downloaded_file} to {destination_file}")
 
 regex_csvs = [ re.compile(r"MyValue.*\.csv"), re.compile(r"MyPortfolio.*\.csv")]
 # Iterate through all files in the directory
@@ -82,8 +83,8 @@ for filename in os.listdir(DOWNLOAD_DIR):
 # Connect to manually started Chrome browser
 # "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug &
 
-# Force webdriver-manager to download ChromeDriver version 139 to match the running Chrome session
-service = Service(ChromeDriverManager(driver_version="139").install())
+# Let webdriver-manager download a ChromeDriver matching the installed Chrome
+service = Service(ChromeDriverManager().install())
 options = webdriver.ChromeOptions()
 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 driver = webdriver.Chrome(service=service, options=options)
