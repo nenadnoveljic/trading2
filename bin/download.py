@@ -74,6 +74,7 @@ for filename in os.listdir(DOWNLOAD_DIR):
     for regex_csv in regex_csvs:
         if os.path.isfile(filepath) and regex_csv.match(filename):
             try:
+                print(f"Removing: {filepath}\n")
                 os.remove(filepath)
                 print(f"Removed: {filepath}\n")
             except Exception as e:
