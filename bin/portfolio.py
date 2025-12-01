@@ -18,7 +18,7 @@ print(df[(df[PE] > 10) | (df[PB] > 1)].sort_values(by=PE_PB, ascending=False))
 
 # Read the financial strength portfolio file
 fs_file = get_portfolio_filename(ReportType.FINANCIAL_STRENGTH.value)
-fs_df = pd.read_csv(fs_file)
+fs_df = pd.read_csv(fs_file, encoding='latin-1')
 
 merged_df = pd.merge(df, fs_df, on='Symbol', suffixes=('', '_fs'))
 

@@ -98,8 +98,9 @@ print("Current URL:", driver.current_url)
 try:    
     download(driver, get_screener_url(ReportType.FUND.value), get_screener_download_url(), "MyValue.csv", "PE.csv")
     download(driver, get_screener_url(ReportType.FIN.value), get_screener_download_url(), "MyValue.csv", "PB.csv")
+    print("Downloading portfolio...")
     download_portfolio(driver)
-
+    print("Downloaded portfolio")
 finally:
     # Close the browser
     driver.quit()

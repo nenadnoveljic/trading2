@@ -11,8 +11,8 @@ SYMBOL = 'Symbol'
 
 def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     """Merge PE and PB data files into a single DataFrame"""
-    pe_df = pd.read_csv(pe_file)
-    pb_df = pd.read_csv(pb_file)
+    pe_df = pd.read_csv(pe_file, encoding='latin-1')
+    pb_df = pd.read_csv(pb_file, encoding='latin-1')
     
     pe_df = pe_df[[SYMBOL, NAME, PE, "EPS"]]
     pb_df = pb_df[[SYMBOL, PB]]

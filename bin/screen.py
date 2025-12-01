@@ -15,7 +15,7 @@ merged_df = get_merged_pd(os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), os.path.
 disqualified_file = os.path.join(DB_DIR, 'disqualified.csv')
 def filter_out_stocks_from_file(df, file_path):
     if os.path.exists(file_path):
-        exclude_df = pd.read_csv(file_path)
+        exclude_df = pd.read_csv(file_path, encoding='latin-1')
         df = df[~df[SYMBOL].isin(exclude_df[SYMBOL])]
     return df
 
@@ -28,7 +28,7 @@ for year in range(current_year - 10, current_year):
     if os.path.exists(dividend_file):
         filtered_df = filter_out_stocks_from_file(filtered_df, dividend_file)
         
-with_quartal_loss = pd.read_csv(os.path.join(DB_DIR, 'with_quartal_loss.csv'))
+with_quartal_loss = pd.read_csv(os.path.join(DB_DIR, 'with_quartal_loss.csv'), encoding='latin-1')
 # Merge with_quartal_loss with filtered_df on SYMBOL
 merged_with_loss = pd.merge(
     filtered_df,
