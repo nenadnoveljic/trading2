@@ -1,53 +1,91 @@
 import pandas as pd
 import os
 import sys
-import datetime
+import psycopg2
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.downloader import DIR,COPIED_DOWNLOADS_DIR, get_portfolio_filename_with_symbols
+from lib.downloader import COPIED_DOWNLOADS_DIR
 from lib.data import SYMBOL, PE_PB, get_merged_pd
 
-DB_DIR = os.path.join(DIR, "db")
+# Database connection settings
+DB_NAME = "stocks"
+DB_HOST = "localhost"
 
-merged_df = get_merged_pd(os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv'))
 
-# Filter out stocks that are already in the portfolio
-disqualified_file = os.path.join(DB_DIR, 'disqualified.csv')
-def filter_out_stocks_from_file(df, file_path):
-    if os.path.exists(file_path):
-        exclude_df = pd.read_csv(file_path, encoding='latin-1')
-        df = df[~df[SYMBOL].isin(exclude_df[SYMBOL])]
-    return df
+def get_connection():
+    """Get a database connection."""
+    return psycopg2.connect(dbname=DB_NAME, host=DB_HOST)
 
-filtered_df = filter_out_stocks_from_file(merged_df, disqualified_file)
-filtered_df = filter_out_stocks_from_file(filtered_df, get_portfolio_filename_with_symbols())
 
-current_year = datetime.datetime.now().year
-for year in range(current_year - 10, current_year):
-    dividend_file = os.path.join(DB_DIR, f'{year}_first_dividend.csv')
-    if os.path.exists(dividend_file):
-        filtered_df = filter_out_stocks_from_file(filtered_df, dividend_file)
-        
-with_quartal_loss = pd.read_csv(os.path.join(DB_DIR, 'with_quartal_loss.csv'), encoding='latin-1')
-# Merge with_quartal_loss with filtered_df on SYMBOL
-merged_with_loss = pd.merge(
-    filtered_df,
-    with_quartal_loss[[SYMBOL]],
-    on=SYMBOL,
-    how='left',
-    indicator=True
+def get_excluded_symbols() -> set[str]:
+    """
+    Get symbols that should be excluded from screening:
+    - Disqualified companies
+    - Companies with dont_consider_until > NOW()
+    - Companies in portfolio
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT sl.symbol 
+        FROM stock_listings sl
+        JOIN companies c ON sl.company_id = c.id
+        WHERE c.is_disqualified = TRUE 
+           OR c.dont_consider_until > NOW()
+           OR c.id IN (SELECT company_id FROM portfolio)
+    """)
+    
+    symbols = {row[0] for row in cursor.fetchall()}
+    
+    cursor.close()
+    conn.close()
+    
+    return symbols
+
+
+def get_quarterly_loss_symbols() -> set[str]:
+    """Get symbols of companies with quarterly loss."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT sl.symbol 
+        FROM stock_listings sl
+        JOIN companies c ON sl.company_id = c.id
+        WHERE c.had_quarter_loss = TRUE
+    """)
+    
+    symbols = {row[0] for row in cursor.fetchall()}
+    
+    cursor.close()
+    conn.close()
+    
+    return symbols
+
+
+# Load and merge PE/PB data
+merged_df = get_merged_pd(
+    os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), 
+    os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv')
 )
 
-# Set 'quartal_loss' column: True if present in with_quartal_loss, else False
-merged_with_loss['quartal_loss'] = merged_with_loss['_merge'] == 'both'
-# Drop the merge indicator column
-merged_with_loss = merged_with_loss.drop(columns=['_merge'])
+# Get excluded symbols from database
+excluded_symbols = get_excluded_symbols()
 
-# Use merged_with_loss as the new filtered_df for further processing
-filtered_df = merged_with_loss
+# Filter out excluded stocks
+filtered_df = merged_df[~merged_df[SYMBOL].isin(excluded_symbols)]
 
+# Get quarterly loss symbols from database
+quarterly_loss_symbols = get_quarterly_loss_symbols()
 
+# Add quartal_loss column
+filtered_df = filtered_df.copy()
+filtered_df['quartal_loss'] = filtered_df[SYMBOL].isin(quarterly_loss_symbols)
+
+# Sort by quartal_loss (False first), then by PE*PB ascending
 sorted_df = filtered_df.sort_values(by=['quartal_loss', PE_PB], ascending=[True, True])
+
 print(sorted_df.head(50))
 print(len(sorted_df))
-      
