@@ -24,6 +24,7 @@ def get_excluded_symbols() -> set[str]:
     - Disqualified companies
     - Companies with dont_consider_until > NOW()
     - Companies in portfolio
+    - Stocks from markets with not_tradeable_until > NOW()
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -32,9 +33,11 @@ def get_excluded_symbols() -> set[str]:
         SELECT sl.symbol 
         FROM stock_listings sl
         JOIN companies c ON sl.company_id = c.id
+        JOIN stock_markets sm ON sl.market_id = sm.id
         WHERE c.is_disqualified = TRUE 
            OR c.dont_consider_until > NOW()
            OR c.id IN (SELECT company_id FROM portfolio)
+           OR sm.not_tradeable_until > NOW()
     """)
     
     symbols = {row[0] for row in cursor.fetchall()}
