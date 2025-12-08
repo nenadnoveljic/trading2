@@ -18,12 +18,20 @@ def get_connection():
     return psycopg2.connect(dbname=DB_NAME, host=DB_HOST)
 
 
+def get_portfolio_symbols_from_csv() -> set[str]:
+    """Get portfolio symbols from portfolio_fin.csv."""
+    filepath = os.path.join(COPIED_DOWNLOADS_DIR, 'portfolio_fin.csv')
+    if os.path.exists(filepath):
+        df = pd.read_csv(filepath, encoding='latin-1')
+        return set(df['Symbol'].dropna())
+    return set()
+
+
 def get_excluded_symbols() -> set[str]:
     """
     Get symbols that should be excluded from screening:
     - Disqualified companies
     - Companies with dont_consider_until > NOW()
-    - Companies in portfolio
     - Stocks from markets with not_tradeable_until > NOW()
     """
     conn = get_connection()
@@ -36,7 +44,6 @@ def get_excluded_symbols() -> set[str]:
         JOIN stock_markets sm ON sl.market_id = sm.id
         WHERE c.is_disqualified = TRUE 
            OR c.dont_consider_until > NOW()
-           OR c.id IN (SELECT company_id FROM portfolio)
            OR sm.not_tradeable_until > NOW()
     """)
     
@@ -44,6 +51,9 @@ def get_excluded_symbols() -> set[str]:
     
     cursor.close()
     conn.close()
+    
+    # Add portfolio symbols from CSV
+    symbols.update(get_portfolio_symbols_from_csv())
     
     return symbols
 
@@ -74,7 +84,7 @@ merged_df = get_merged_pd(
     os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv')
 )
 
-# Get excluded symbols from database
+# Get excluded symbols from database + portfolio CSV
 excluded_symbols = get_excluded_symbols()
 
 # Filter out excluded stocks
