@@ -6,7 +6,7 @@ import psycopg2
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.downloader import COPIED_DOWNLOADS_DIR
-from lib.data import SYMBOL, PE_PB, get_merged_pd
+from lib.data import SYMBOL, PE_PB, NAME, get_merged_pd
 
 # Database connection settings
 DB_NAME = "stocks"
@@ -58,6 +58,24 @@ def get_excluded_symbols() -> set[str]:
     return symbols
 
 
+def get_excluded_company_names() -> set[str]:
+    """Get company names that should be excluded (disqualified or deferred)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT company_name 
+        FROM companies 
+        WHERE is_disqualified = TRUE 
+           OR dont_consider_until > NOW()
+    """)
+    
+    names = {row[0] for row in cursor.fetchall()}
+    cursor.close()
+    conn.close()
+    return names
+
+
 def get_quarterly_loss_symbols() -> set[str]:
     """Get symbols of companies with quarterly loss."""
     conn = get_connection()
@@ -84,11 +102,15 @@ merged_df = get_merged_pd(
     os.path.join(COPIED_DOWNLOADS_DIR, 'PB.csv')
 )
 
-# Get excluded symbols from database + portfolio CSV
+# Get exclusions
 excluded_symbols = get_excluded_symbols()
+excluded_names = get_excluded_company_names()
 
-# Filter out excluded stocks
-filtered_df = merged_df[~merged_df[SYMBOL].isin(excluded_symbols)]
+# Filter out excluded stocks (by symbol OR by company name)
+filtered_df = merged_df[
+    ~merged_df[SYMBOL].isin(excluded_symbols) & 
+    ~merged_df[NAME].isin(excluded_names)
+]
 
 # Get quarterly loss symbols from database
 quarterly_loss_symbols = get_quarterly_loss_symbols()
