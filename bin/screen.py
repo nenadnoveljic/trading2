@@ -76,6 +76,23 @@ def get_excluded_company_names() -> set[str]:
     return names
 
 
+def get_deferred_market_suffixes() -> set[str]:
+    """Get market suffixes that are currently deferred."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT abbreviation 
+        FROM stock_markets 
+        WHERE not_tradeable_until > NOW()
+    """)
+    
+    suffixes = {'.' + row[0] for row in cursor.fetchall()}
+    cursor.close()
+    conn.close()
+    return suffixes
+
+
 def get_quarterly_loss_symbols() -> set[str]:
     """Get symbols of companies with quarterly loss."""
     conn = get_connection()
@@ -106,11 +123,20 @@ merged_df = get_merged_pd(
 excluded_symbols = get_excluded_symbols()
 excluded_names = get_excluded_company_names()
 
+# Get deferred market suffixes
+deferred_suffixes = get_deferred_market_suffixes()
+
 # Filter out excluded stocks (by symbol OR by company name)
 filtered_df = merged_df[
     ~merged_df[SYMBOL].isin(excluded_symbols) & 
     ~merged_df[NAME].isin(excluded_names)
 ]
+
+# Also filter by deferred market suffix
+if deferred_suffixes:
+    filtered_df = filtered_df[
+        ~filtered_df[SYMBOL].apply(lambda s: any(s.endswith(suffix) for suffix in deferred_suffixes))
+    ]
 
 # Get quarterly loss symbols from database
 quarterly_loss_symbols = get_quarterly_loss_symbols()

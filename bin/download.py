@@ -86,7 +86,7 @@ for filename in os.listdir(DOWNLOAD_DIR):
 
 # Let webdriver-manager download a ChromeDriver matching the installed Chrome
 # Specify Chrome version 141 to match the installed browser
-service = Service(ChromeDriverManager(driver_version="141.0.7390.123").install())
+service = Service(ChromeDriverManager().install())
 options = webdriver.ChromeOptions()
 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 driver = webdriver.Chrome(service=service, options=options)
