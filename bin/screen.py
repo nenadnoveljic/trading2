@@ -127,11 +127,9 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
     """
     Get cached stock info for companies.
     
-    Returns dict mapping company_name to dict with:
-        - year_loss: bool or None (None = not checked)
-        - first_div_year: int or None
-        - has_gaps: bool or None
-        - AL_ratio: float or None
+    Only returns cached True values for: year_loss, has_gaps
+    Also returns: first_div_year
+    Does NOT return: AL_ratio (not cached, always fetch fresh)
     """
     if not company_names:
         return {}
@@ -141,7 +139,7 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
     
     placeholders = ','.join(['%s'] * len(company_names))
     cursor.execute(f"""
-        SELECT company_name, had_year_loss, first_div_year, has_div_gaps, al_ratio
+        SELECT company_name, had_year_loss, first_div_year, has_div_gaps
         FROM companies 
         WHERE company_name IN ({placeholders})
     """, company_names)
@@ -151,8 +149,7 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
         result[row[0]] = {
             'year_loss': row[1],
             'first_div_year': row[2],
-            'has_gaps': row[3],
-            'AL_ratio': float(row[4]) if row[4] is not None else None
+            'has_gaps': row[3]
         }
     
     cursor.close()
@@ -206,16 +203,24 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
     """
     Update cached stock info for a company (creates if not exists).
     
-    stock_info dict can contain: year_loss, first_div_year, has_gaps, AL_ratio
+    Only caches True values for: year_loss, has_gaps
+    Also caches: first_div_year (for dividend history)
+    Does NOT cache: AL_ratio (always fetch fresh)
     """
     conn = get_connection()
     cursor = conn.cursor()
     git_commit = get_git_commit()
     
-    year_loss = stock_info.get('year_loss')
+    # Only cache True values for these flags
+    year_loss = stock_info.get('year_loss') if stock_info.get('year_loss') is True else None
+    has_gaps = stock_info.get('has_gaps') if stock_info.get('has_gaps') is True else None
     first_div_year = stock_info.get('first_div_year')
-    has_gaps = stock_info.get('has_gaps')
-    al_ratio = stock_info.get('AL_ratio')
+    
+    # Skip if nothing to cache
+    if year_loss is None and has_gaps is None and first_div_year is None:
+        cursor.close()
+        conn.close()
+        return
     
     cursor.execute("SELECT id FROM companies WHERE company_name = %s", (company_name,))
     row = cursor.fetchone()
@@ -223,19 +228,18 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
     if row:
         cursor.execute("""
             UPDATE companies 
-            SET had_year_loss = %s, 
-                first_div_year = %s, 
-                has_div_gaps = %s, 
-                al_ratio = %s,
+            SET had_year_loss = COALESCE(%s, had_year_loss), 
+                first_div_year = COALESCE(%s, first_div_year), 
+                has_div_gaps = COALESCE(%s, has_div_gaps),
                 updated_at = NOW(), 
                 updated_by = %s
             WHERE id = %s
-        """, (year_loss, first_div_year, has_gaps, al_ratio, git_commit, row[0]))
+        """, (year_loss, first_div_year, has_gaps, git_commit, row[0]))
     else:
         cursor.execute("""
-            INSERT INTO companies (company_name, had_year_loss, first_div_year, has_div_gaps, al_ratio, updated_at, updated_by)
-            VALUES (%s, %s, %s, %s, %s, NOW(), %s)
-        """, (company_name, year_loss, first_div_year, has_gaps, al_ratio, git_commit))
+            INSERT INTO companies (company_name, had_year_loss, first_div_year, has_div_gaps, updated_at, updated_by)
+            VALUES (%s, %s, %s, %s, NOW(), %s)
+        """, (company_name, year_loss, first_div_year, has_gaps, git_commit))
     
     conn.commit()
     cursor.close()
@@ -340,24 +344,23 @@ top_n = 5
 top_symbols = sorted_df[SYMBOL].head(top_n).tolist()
 top_names = sorted_df[sorted_df[SYMBOL].isin(top_symbols)][[SYMBOL, NAME]].set_index(SYMBOL)[NAME].to_dict()
 
-# Check cache to avoid unnecessary yfinance calls
+# Get cached True values for year_loss/div_gaps
 stock_info_cache = get_stock_info_cache(list(top_names.values()))
 
-# Determine which symbols need yfinance fetching (year_loss not yet cached means not checked)
-symbols_to_fetch = [s for s in top_symbols if top_names[s] not in stock_info_cache or stock_info_cache[top_names[s]].get('year_loss') is None]
-symbols_cached = [s for s in top_symbols if top_names[s] in stock_info_cache and stock_info_cache[top_names[s]].get('year_loss') is not None]
+# Always fetch from yfinance (AL_ratio not cached, must be fresh)
+stock_info = get_stock_info_batch(top_symbols)
 
-if symbols_cached:
-    print(f"Using cached stock info for {len(symbols_cached)} companies")
-
-# Fetch from yfinance only for uncached symbols
-stock_info = {}
-if symbols_to_fetch:
-    stock_info = get_stock_info_batch(symbols_to_fetch)
-
-# Merge cached stock info for cached symbols
-for symbol in symbols_cached:
-    stock_info[symbol] = stock_info_cache[top_names[symbol]]
+# Override with cached True values (these are permanent facts)
+for symbol in top_symbols:
+    company_name = top_names[symbol]
+    if company_name in stock_info_cache:
+        cached = stock_info_cache[company_name]
+        if cached.get('year_loss') is True:
+            stock_info[symbol]['year_loss'] = True
+        if cached.get('has_gaps') is True:
+            stock_info[symbol]['has_gaps'] = True
+        if cached.get('first_div_year') is not None:
+            stock_info[symbol]['first_div_year'] = cached['first_div_year']
 
 # Add info columns (only populated for top N)
 sorted_df = sorted_df.copy()
@@ -392,9 +395,9 @@ if deferred_symbols:
         print(f"  {sym}: {name} (AL_ratio: {ratio})")
     print()
 
-# Process fetched symbols: disqualify if year_loss, update cache for all
+# Process fetched symbols: disqualify if year_loss, cache True values only
 disqualified_for_loss = []
-for symbol in symbols_to_fetch:
+for symbol in top_symbols:
     info = stock_info.get(symbol, {})
     year_loss = info.get('year_loss')
     company_name = top_names[symbol]
@@ -402,9 +405,9 @@ for symbol in symbols_to_fetch:
     if year_loss is True:
         if disqualify_company_for_year_loss(company_name):
             disqualified_for_loss.append((symbol, company_name))
-    else:
-        # Cache all stock info (year_loss, first_div_year, has_gaps, AL_ratio)
-        update_stock_info_cache(company_name, info)
+    
+    # Cache only True values for year_loss, div_gaps (not AL_ratio)
+    update_stock_info_cache(company_name, info)
 
 if disqualified_for_loss:
     print(f"\nPermanently disqualified {len(disqualified_for_loss)} companies due to year loss:")
