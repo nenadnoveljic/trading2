@@ -165,8 +165,14 @@ sorted_df['first_div_year'] = sorted_df[SYMBOL].map(
 sorted_df['div_gaps'] = sorted_df[SYMBOL].map(
     lambda s: stock_info.get(s, {}).get('has_gaps')
 )
-sorted_df['assets_liab_ratio'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('assets_liab_ratio')
+sorted_df['AL_ratio'] = sorted_df[SYMBOL].map(
+    lambda s: stock_info.get(s, {}).get('AL_ratio')
+)
+sorted_df['year_loss'] = sorted_df[SYMBOL].map(
+    lambda s: stock_info.get(s, {}).get('year_loss')
+)
+sorted_df['quarter_loss'] = sorted_df[SYMBOL].map(
+    lambda s: stock_info.get(s, {}).get('quarter_loss')
 )
 
 print(sorted_df.head(50))
