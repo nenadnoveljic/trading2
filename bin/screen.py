@@ -418,6 +418,9 @@ sorted_df['AL_ratio'] = sorted_df[SYMBOL].map(
 sorted_df['year_loss'] = sorted_df[SYMBOL].map(
     lambda s: stock_info.get(s, {}).get('year_loss')
 )
+sorted_df['cash_debt_ok'] = sorted_df[SYMBOL].map(
+    lambda s: stock_info.get(s, {}).get('cash_debt_ok')
+)
 
 # Fallback: fill NaN Current Ratio from yfinance for top N stocks
 for symbol in top_symbols:

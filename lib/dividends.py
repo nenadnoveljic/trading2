@@ -42,13 +42,15 @@ def get_stock_info(symbol: str) -> dict:
         - AL_ratio: Total Assets / Total Liabilities (float or None)
         - year_loss: Whether any year had a net loss (bool or None)
         - current_ratio: Current Ratio from yfinance (float or None)
+        - cash_debt_ok: Whether Cash + Receivables >= Total Debt (bool or None)
     """
     result = {
         "first_div_year": None,
         "has_gaps": None,
         "AL_ratio": None,
         "year_loss": None,
-        "current_ratio": None
+        "current_ratio": None,
+        "cash_debt_ok": None
     }
     
     try:
@@ -81,6 +83,21 @@ def get_stock_info(symbol: str) -> dict:
         info = ticker.info
         if info and 'currentRatio' in info and info['currentRatio'] is not None:
             result["current_ratio"] = round(float(info['currentRatio']), 2)
+        
+        # Check if Cash + Receivables >= Total Debt
+        balance_sheet = ticker.balance_sheet
+        if not balance_sheet.empty:
+            latest = balance_sheet.iloc[:, 0]
+            # Use Cash & Short Term Investments (more comprehensive) as primary
+            cash = latest.get('Cash Cash Equivalents And Short Term Investments') or latest.get('Cash And Cash Equivalents')
+            # Sum all receivables types (treat None as 0)
+            accounts_recv = latest.get('Accounts Receivable') or 0
+            other_recv = latest.get('Other Receivables') or 0
+            receivables = accounts_recv + other_recv
+            total_debt = latest.get('Total Debt')
+            
+            if cash is not None and total_debt is not None:
+                result["cash_debt_ok"] = bool((cash + receivables) >= total_debt)
         
     except Exception:
         pass
