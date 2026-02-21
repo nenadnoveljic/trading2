@@ -98,24 +98,29 @@ def get_deferred_market_suffixes() -> set[str]:
     return suffixes
 
 
-def get_quarterly_loss_symbols() -> set[str]:
-    """Get symbols of companies with quarterly loss."""
+def get_quarterly_loss_status() -> dict[str, bool | None]:
+    """
+    Get quarterly loss status by company name.
+    
+    Returns dict mapping company_name to:
+        - True: has quarterly loss
+        - False: no quarterly loss (checked)
+        - None: not checked (company not in database)
+    """
     conn = get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT sl.symbol 
-        FROM stock_listings sl
-        JOIN companies c ON sl.company_id = c.id
-        WHERE c.had_quarter_loss = TRUE
+        SELECT company_name, had_quarter_loss 
+        FROM companies
     """)
     
-    symbols = {row[0] for row in cursor.fetchall()}
+    result = {row[0]: row[1] for row in cursor.fetchall()}
     
     cursor.close()
     conn.close()
     
-    return symbols
+    return result
 
 
 def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
@@ -312,15 +317,18 @@ if deferred_suffixes:
         ~filtered_df[SYMBOL].apply(lambda s: any(s.endswith(suffix) for suffix in deferred_suffixes))
     ]
 
-# Get quarterly loss symbols from database
-quarterly_loss_symbols = get_quarterly_loss_symbols()
+# Get quarterly loss status from database (True/False/None) by company name
+quarterly_loss_status = get_quarterly_loss_status()
 
-# Add quartal_loss column
+# Add quartal_loss column (None for unknown, False for checked no loss, True for loss)
 filtered_df = filtered_df.copy()
-filtered_df['quartal_loss'] = filtered_df[SYMBOL].isin(quarterly_loss_symbols)
+filtered_df['quartal_loss'] = filtered_df[NAME].map(quarterly_loss_status)
 
-# Sort by quartal_loss (False first), then by PE*PB ascending
-sorted_df = filtered_df.sort_values(by=['quartal_loss', PE_PB], ascending=[True, True])
+# Sort: True (quarterly loss) at end, False/NaN sorted by PE*PB
+# Create sort key: True=1 (end), False/NaN=0 (sort by PE*PB)
+filtered_df['_sort_loss'] = filtered_df['quartal_loss'].apply(lambda x: 1 if x is True else 0)
+sorted_df = filtered_df.sort_values(by=['_sort_loss', PE_PB], ascending=[True, True])
+sorted_df = sorted_df.drop(columns=['_sort_loss'])
 
 # Fetch stock info (dividends + ratios) for top 5 results
 top_n = 5
