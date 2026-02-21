@@ -342,9 +342,6 @@ sorted_df['AL_ratio'] = sorted_df[SYMBOL].map(
 sorted_df['year_loss'] = sorted_df[SYMBOL].map(
     lambda s: stock_info.get(s, {}).get('year_loss')
 )
-sorted_df['quarter_loss'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('quarter_loss')
-)
 
 # Check for stocks with AL_ratio < 2 and defer them
 AL_RATIO_THRESHOLD = 2.0

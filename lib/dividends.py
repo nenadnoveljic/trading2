@@ -41,14 +41,12 @@ def get_stock_info(symbol: str) -> dict:
         - has_gaps: Whether there are gaps in annual dividends (bool or None)
         - AL_ratio: Total Assets / Total Liabilities (float or None)
         - year_loss: Whether any year had a net loss (bool or None)
-        - quarter_loss: Whether any quarter had a net loss (bool or None)
     """
     result = {
         "first_div_year": None,
         "has_gaps": None,
         "AL_ratio": None,
-        "year_loss": None,
-        "quarter_loss": None
+        "year_loss": None
     }
     
     try:
@@ -76,11 +74,6 @@ def get_stock_info(symbol: str) -> dict:
         annual = ticker.financials
         if not annual.empty and 'Net Income' in annual.index:
             result["year_loss"] = bool((annual.loc['Net Income'] < 0).any())
-        
-        # Check for quarterly losses
-        quarterly = ticker.quarterly_financials
-        if not quarterly.empty and 'Net Income' in quarterly.index:
-            result["quarter_loss"] = bool((quarterly.loc['Net Income'] < 0).any())
         
     except Exception:
         pass
