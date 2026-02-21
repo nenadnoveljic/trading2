@@ -6,7 +6,7 @@ import psycopg2
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.downloader import COPIED_DOWNLOADS_DIR
-from lib.data import SYMBOL, PE_PB, NAME, get_merged_pd
+from lib.data import SYMBOL, PE_PB, NAME, CURRENT_RATIO, get_merged_pd
 from lib.dividends import get_stock_info_batch
 from lib.git_utils import get_git_commit
 
@@ -316,6 +316,11 @@ if deferred_suffixes:
     filtered_df = filtered_df[
         ~filtered_df[SYMBOL].apply(lambda s: any(s.endswith(suffix) for suffix in deferred_suffixes))
     ]
+
+# Filter: keep only Current Ratio >= 2 or NaN (unknown)
+filtered_df = filtered_df[
+    (filtered_df[CURRENT_RATIO] >= 2) | (filtered_df[CURRENT_RATIO].isna())
+]
 
 # Get quarterly loss status from database (True/False/None) by company name
 quarterly_loss_status = get_quarterly_loss_status()
