@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.downloader import COPIED_DOWNLOADS_DIR
 from lib.data import SYMBOL, PE_PB, NAME, get_merged_pd
+from lib.dividends import get_dividend_info_batch
 
 # Database connection settings
 DB_NAME = "stocks"
@@ -147,6 +148,20 @@ filtered_df['quartal_loss'] = filtered_df[SYMBOL].isin(quarterly_loss_symbols)
 
 # Sort by quartal_loss (False first), then by PE*PB ascending
 sorted_df = filtered_df.sort_values(by=['quartal_loss', PE_PB], ascending=[True, True])
+
+# Fetch dividend info for top 5 results
+top_n = 5
+top_symbols = sorted_df[SYMBOL].head(top_n).tolist()
+dividend_info = get_dividend_info_batch(top_symbols)
+
+# Add dividend columns (only populated for top N)
+sorted_df = sorted_df.copy()
+sorted_df['first_div_year'] = sorted_df[SYMBOL].map(
+    lambda s: dividend_info.get(s, {}).get('first_div_year')
+)
+sorted_df['div_gaps'] = sorted_df[SYMBOL].map(
+    lambda s: dividend_info.get(s, {}).get('has_gaps')
+)
 
 print(sorted_df.head(50))
 print(len(sorted_df))
