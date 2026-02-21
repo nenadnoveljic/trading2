@@ -199,6 +199,48 @@ def disqualify_company_for_year_loss(company_name: str) -> bool:
     return True
 
 
+def disqualify_company_for_div_gaps(company_name: str) -> bool:
+    """
+    Permanently disqualify a company due to dividend gaps.
+    Creates the company if it doesn't exist.
+    
+    Returns True if company was disqualified, False if already disqualified.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    git_commit = get_git_commit()
+    
+    cursor.execute("SELECT id, is_disqualified FROM companies WHERE company_name = %s", (company_name,))
+    row = cursor.fetchone()
+    
+    if row:
+        company_id, is_disqualified = row
+        if is_disqualified:
+            cursor.close()
+            conn.close()
+            return False
+        
+        cursor.execute("""
+            UPDATE companies 
+            SET is_disqualified = TRUE,
+                disqualified_reason = 'dividends gap',
+                has_div_gaps = TRUE,
+                updated_at = NOW(),
+                updated_by = %s
+            WHERE id = %s
+        """, (git_commit, company_id))
+    else:
+        cursor.execute("""
+            INSERT INTO companies (company_name, is_disqualified, disqualified_reason, has_div_gaps, updated_at, updated_by)
+            VALUES (%s, TRUE, 'dividends gap', TRUE, NOW(), %s)
+        """, (company_name, git_commit))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return True
+
+
 def update_stock_info_cache(company_name: str, stock_info: dict):
     """
     Update cached stock info for a company (creates if not exists).
@@ -377,6 +419,13 @@ sorted_df['year_loss'] = sorted_df[SYMBOL].map(
     lambda s: stock_info.get(s, {}).get('year_loss')
 )
 
+# Fallback: fill NaN Current Ratio from yfinance for top N stocks
+for symbol in top_symbols:
+    if pd.isna(sorted_df.loc[sorted_df[SYMBOL] == symbol, CURRENT_RATIO].values[0]):
+        yf_current_ratio = stock_info.get(symbol, {}).get('current_ratio')
+        if yf_current_ratio is not None:
+            sorted_df.loc[sorted_df[SYMBOL] == symbol, CURRENT_RATIO] = yf_current_ratio
+
 # Check for stocks with AL_ratio < 2 and defer them
 AL_RATIO_THRESHOLD = 2.0
 deferred_symbols = []
@@ -395,16 +444,22 @@ if deferred_symbols:
         print(f"  {sym}: {name} (AL_ratio: {ratio})")
     print()
 
-# Process fetched symbols: disqualify if year_loss, cache True values only
+# Process fetched symbols: disqualify if year_loss or div_gaps, cache True values only
 disqualified_for_loss = []
+disqualified_for_div_gaps = []
 for symbol in top_symbols:
     info = stock_info.get(symbol, {})
     year_loss = info.get('year_loss')
+    has_gaps = info.get('has_gaps')
     company_name = top_names[symbol]
     
     if year_loss is True:
         if disqualify_company_for_year_loss(company_name):
             disqualified_for_loss.append((symbol, company_name))
+    
+    if has_gaps is True:
+        if disqualify_company_for_div_gaps(company_name):
+            disqualified_for_div_gaps.append((symbol, company_name))
     
     # Cache only True values for year_loss, div_gaps (not AL_ratio)
     update_stock_info_cache(company_name, info)
@@ -412,6 +467,12 @@ for symbol in top_symbols:
 if disqualified_for_loss:
     print(f"\nPermanently disqualified {len(disqualified_for_loss)} companies due to year loss:")
     for sym, name in disqualified_for_loss:
+        print(f"  {sym}: {name}")
+    print()
+
+if disqualified_for_div_gaps:
+    print(f"\nPermanently disqualified {len(disqualified_for_div_gaps)} companies due to dividend gaps:")
+    for sym, name in disqualified_for_div_gaps:
         print(f"  {sym}: {name}")
     print()
 

@@ -41,12 +41,14 @@ def get_stock_info(symbol: str) -> dict:
         - has_gaps: Whether there are gaps in annual dividends (bool or None)
         - AL_ratio: Total Assets / Total Liabilities (float or None)
         - year_loss: Whether any year had a net loss (bool or None)
+        - current_ratio: Current Ratio from yfinance (float or None)
     """
     result = {
         "first_div_year": None,
         "has_gaps": None,
         "AL_ratio": None,
-        "year_loss": None
+        "year_loss": None,
+        "current_ratio": None
     }
     
     try:
@@ -74,6 +76,11 @@ def get_stock_info(symbol: str) -> dict:
         annual = ticker.financials
         if not annual.empty and 'Net Income' in annual.index:
             result["year_loss"] = bool((annual.loc['Net Income'] < 0).any())
+        
+        # Get current ratio from info
+        info = ticker.info
+        if info and 'currentRatio' in info and info['currentRatio'] is not None:
+            result["current_ratio"] = round(float(info['currentRatio']), 2)
         
     except Exception:
         pass
