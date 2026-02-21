@@ -7,7 +7,8 @@ NAME = 'Name'
 PE = 'P / E'
 PB = 'Price / Book Ratio'
 PE_PB = 'PE*PB'
-SYMBOL = 'Symbol' 
+SYMBOL = 'Symbol'
+CURRENT_RATIO = 'Current Ratio'
 
 def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     """Merge PE and PB data files into a single DataFrame"""
@@ -15,7 +16,7 @@ def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     pb_df = pd.read_csv(pb_file, encoding='latin-1')
     
     pe_df = pe_df[[SYMBOL, NAME, PE, "EPS"]]
-    pb_df = pb_df[[SYMBOL, PB]]
+    pb_df = pb_df[[SYMBOL, PB, CURRENT_RATIO]]
 
     merged_df = pd.merge(pe_df, pb_df, on=SYMBOL)
     merged_df[PE_PB] = merged_df[PE] * merged_df[PB]
