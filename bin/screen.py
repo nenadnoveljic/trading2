@@ -23,6 +23,17 @@ def get_connection():
     return psycopg2.connect(dbname=DB_NAME, host=DB_HOST)
 
 
+def get_exclusion_reason_id(code: str) -> int | None:
+    """Get exclusion reason ID by code from the exclusion_reasons table."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM exclusion_reasons WHERE code = %s", (code,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row[0] if row else None
+
+
 def get_portfolio_symbols_from_csv() -> set[str]:
     """Get portfolio symbols from portfolio_fin.csv."""
     filepath = os.path.join(COPIED_DOWNLOADS_DIR, 'portfolio_fin.csv')
@@ -164,6 +175,7 @@ def disqualify_company_for_year_loss(company_name: str) -> bool:
     
     Returns True if company was disqualified, False if already disqualified.
     """
+    reason_id = get_exclusion_reason_id('year_loss')
     conn = get_connection()
     cursor = conn.cursor()
     git_commit = get_git_commit()
@@ -181,17 +193,17 @@ def disqualify_company_for_year_loss(company_name: str) -> bool:
         cursor.execute("""
             UPDATE companies 
             SET is_disqualified = TRUE,
-                disqualified_reason = 'year loss',
+                disqualified_reason_id = %s,
                 had_year_loss = TRUE,
                 updated_at = NOW(),
                 updated_by = %s
             WHERE id = %s
-        """, (git_commit, company_id))
+        """, (reason_id, git_commit, company_id))
     else:
         cursor.execute("""
-            INSERT INTO companies (company_name, is_disqualified, disqualified_reason, had_year_loss, updated_at, updated_by)
-            VALUES (%s, TRUE, 'year loss', TRUE, NOW(), %s)
-        """, (company_name, git_commit))
+            INSERT INTO companies (company_name, is_disqualified, disqualified_reason_id, had_year_loss, updated_at, updated_by)
+            VALUES (%s, TRUE, %s, TRUE, NOW(), %s)
+        """, (company_name, reason_id, git_commit))
     
     conn.commit()
     cursor.close()
@@ -206,6 +218,7 @@ def disqualify_company_for_div_gaps(company_name: str) -> bool:
     
     Returns True if company was disqualified, False if already disqualified.
     """
+    reason_id = get_exclusion_reason_id('dividends_gap')
     conn = get_connection()
     cursor = conn.cursor()
     git_commit = get_git_commit()
@@ -223,17 +236,17 @@ def disqualify_company_for_div_gaps(company_name: str) -> bool:
         cursor.execute("""
             UPDATE companies 
             SET is_disqualified = TRUE,
-                disqualified_reason = 'dividends gap',
+                disqualified_reason_id = %s,
                 has_div_gaps = TRUE,
                 updated_at = NOW(),
                 updated_by = %s
             WHERE id = %s
-        """, (git_commit, company_id))
+        """, (reason_id, git_commit, company_id))
     else:
         cursor.execute("""
-            INSERT INTO companies (company_name, is_disqualified, disqualified_reason, has_div_gaps, updated_at, updated_by)
-            VALUES (%s, TRUE, 'dividends gap', TRUE, NOW(), %s)
-        """, (company_name, git_commit))
+            INSERT INTO companies (company_name, is_disqualified, disqualified_reason_id, has_div_gaps, updated_at, updated_by)
+            VALUES (%s, TRUE, %s, TRUE, NOW(), %s)
+        """, (company_name, reason_id, git_commit))
     
     conn.commit()
     cursor.close()
@@ -295,13 +308,14 @@ def defer_company_for_al_ratio(company_name: str, al_ratio: float) -> bool:
     
     Returns True if company was deferred, False if already deferred.
     """
+    reason_id = get_exclusion_reason_id('al_ratio')
     conn = get_connection()
     cursor = conn.cursor()
     git_commit = get_git_commit()
     
     # Check if company exists and is already deferred for AL ratio
     cursor.execute("""
-        SELECT id, dont_consider_until, dont_consider_reason 
+        SELECT id, dont_consider_until, defer_reason_id 
         FROM companies 
         WHERE company_name = %s
     """, (company_name,))
@@ -309,9 +323,9 @@ def defer_company_for_al_ratio(company_name: str, al_ratio: float) -> bool:
     row = cursor.fetchone()
     
     if row:
-        company_id, dont_until, reason = row
+        company_id, dont_until, existing_reason_id = row
         # Already deferred for AL ratio - skip
-        if dont_until and reason and 'AL_ratio' in reason:
+        if dont_until and existing_reason_id == reason_id:
             cursor.close()
             conn.close()
             return False
@@ -320,17 +334,17 @@ def defer_company_for_al_ratio(company_name: str, al_ratio: float) -> bool:
         cursor.execute("""
             UPDATE companies 
             SET dont_consider_until = NOW() + INTERVAL '6 months',
-                dont_consider_reason = %s,
+                defer_reason_id = %s,
                 updated_at = NOW(),
                 updated_by = %s
             WHERE id = %s
-        """, (f'AL_ratio < 2 ({al_ratio})', git_commit, company_id))
+        """, (reason_id, git_commit, company_id))
     else:
         # Insert new company
         cursor.execute("""
-            INSERT INTO companies (company_name, dont_consider_until, dont_consider_reason, updated_at, updated_by)
+            INSERT INTO companies (company_name, dont_consider_until, defer_reason_id, updated_at, updated_by)
             VALUES (%s, NOW() + INTERVAL '6 months', %s, NOW(), %s)
-        """, (company_name, f'AL_ratio < 2 ({al_ratio})', git_commit))
+        """, (company_name, reason_id, git_commit))
     
     conn.commit()
     cursor.close()
