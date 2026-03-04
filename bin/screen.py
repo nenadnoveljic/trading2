@@ -443,125 +443,155 @@ filtered_df['_sort_loss'] = filtered_df['quartal_loss'].apply(lambda x: 1 if x i
 sorted_df = filtered_df.sort_values(by=['_sort_loss', PE_PB], ascending=[True, True])
 sorted_df = sorted_df.drop(columns=['_sort_loss'])
 
-# Fetch stock info (dividends + ratios) for top 5 results
-top_n = 5
-top_symbols = sorted_df[SYMBOL].head(top_n).tolist()
-top_names = sorted_df[sorted_df[SYMBOL].isin(top_symbols)][[SYMBOL, NAME]].set_index(SYMBOL)[NAME].to_dict()
+# Fetch stock info iteratively until we have MIN_DISPLAY_COUNT valid stocks
+MIN_DISPLAY_COUNT = 5
+BATCH_SIZE = 10
+AL_RATIO_THRESHOLD = 2.0
 
-# Get cached True values for year_loss/div_gaps
-stock_info_cache = get_stock_info_cache(list(top_names.values()))
+all_stock_info = {}
+all_excluded = set()
+all_deferred_not_found = []
+all_deferred_al_ratio = []
+all_disqualified_loss = []
+all_disqualified_div_gaps = []
 
-# Always fetch from yfinance (AL_ratio not cached, must be fresh)
-stock_info, not_found_symbols = get_stock_info_batch(top_symbols, names=top_names)
+# Track which symbols we've already processed
+processed_symbols = set()
+remaining_df = sorted_df.copy()
 
-# Defer stocks that returned 404 (not found)
-if not_found_symbols:
-    deferred_not_found = []
+while True:
+    # Get next batch of unprocessed symbols
+    candidates = remaining_df[~remaining_df[SYMBOL].isin(processed_symbols)][SYMBOL].head(BATCH_SIZE).tolist()
+    
+    if not candidates:
+        break  # No more candidates
+    
+    top_names = remaining_df[remaining_df[SYMBOL].isin(candidates)][[SYMBOL, NAME]].set_index(SYMBOL)[NAME].to_dict()
+    
+    # Get cached True values for year_loss/div_gaps
+    stock_info_cache = get_stock_info_cache(list(top_names.values()))
+    
+    # Fetch from yfinance
+    stock_info, not_found_symbols = get_stock_info_batch(candidates, names=top_names)
+    
+    # Process not found symbols
     for symbol in not_found_symbols:
         company_name = top_names[symbol]
         if defer_company_for_not_found(company_name):
-            deferred_not_found.append((symbol, company_name))
-    if deferred_not_found:
-        print(f"\nDeferred {len(deferred_not_found)} companies for 1 month (symbol not found):")
-        for sym, name in deferred_not_found:
-            print(f"  {sym}: {name}")
+            all_deferred_not_found.append((symbol, company_name))
+        all_excluded.add(symbol)
+    
+    # Override with cached True values
+    for symbol in candidates:
+        if symbol in not_found_symbols:
+            continue
+        company_name = top_names[symbol]
+        if company_name in stock_info_cache:
+            cached = stock_info_cache[company_name]
+            if cached.get('year_loss') is True:
+                stock_info[symbol]['year_loss'] = True
+            if cached.get('has_gaps') is True:
+                stock_info[symbol]['has_gaps'] = True
+            if cached.get('first_div_year') is not None:
+                stock_info[symbol]['first_div_year'] = cached['first_div_year']
+    
+    # Process each symbol
+    for symbol in candidates:
+        if symbol in not_found_symbols:
+            continue
+            
+        info = stock_info.get(symbol, {})
+        company_name = top_names[symbol]
+        
+        # Check AL_ratio
+        al_ratio = info.get('AL_ratio')
+        if al_ratio is not None and al_ratio < AL_RATIO_THRESHOLD:
+            if defer_company_for_al_ratio(company_name, al_ratio):
+                all_deferred_al_ratio.append((symbol, company_name, al_ratio))
+            all_excluded.add(symbol)
+        
+        # Check year_loss
+        if info.get('year_loss') is True:
+            if disqualify_company_for_year_loss(company_name):
+                all_disqualified_loss.append((symbol, company_name))
+            all_excluded.add(symbol)
+        
+        # Check div_gaps
+        if info.get('has_gaps') is True:
+            if disqualify_company_for_div_gaps(company_name):
+                all_disqualified_div_gaps.append((symbol, company_name))
+            all_excluded.add(symbol)
+        
+        # Cache info
+        update_stock_info_cache(company_name, info)
+        
+        # Store info for display
+        all_stock_info[symbol] = info
+    
+    processed_symbols.update(candidates)
+    
+    # Check if we have enough valid stocks
+    valid_count = len(processed_symbols - all_excluded)
+    if valid_count >= MIN_DISPLAY_COUNT:
+        break
 
-# Override with cached True values (these are permanent facts)
-for symbol in top_symbols:
-    company_name = top_names[symbol]
-    if company_name in stock_info_cache:
-        cached = stock_info_cache[company_name]
-        if cached.get('year_loss') is True:
-            stock_info[symbol]['year_loss'] = True
-        if cached.get('has_gaps') is True:
-            stock_info[symbol]['has_gaps'] = True
-        if cached.get('first_div_year') is not None:
-            stock_info[symbol]['first_div_year'] = cached['first_div_year']
+# Print summaries
+if all_deferred_not_found:
+    print(f"\nDeferred {len(all_deferred_not_found)} companies for 1 month (symbol not found):")
+    for sym, name in all_deferred_not_found:
+        print(f"  {sym}: {name}")
 
-# Add info columns (only populated for top N)
-sorted_df = sorted_df.copy()
-sorted_df['first_div_year'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('first_div_year')
-)
-sorted_df['div_gaps'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('has_gaps')
-)
-sorted_df['AL_ratio'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('AL_ratio')
-)
-sorted_df['year_loss'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('year_loss')
-)
-sorted_df['cash_debt_ok'] = sorted_df[SYMBOL].map(
-    lambda s: stock_info.get(s, {}).get('cash_debt_ok')
-)
-
-# Fallback: fill NaN Current Ratio from yfinance for top N stocks
-for symbol in top_symbols:
-    if pd.isna(sorted_df.loc[sorted_df[SYMBOL] == symbol, CURRENT_RATIO].values[0]):
-        yf_current_ratio = stock_info.get(symbol, {}).get('current_ratio')
-        if yf_current_ratio is not None:
-            sorted_df.loc[sorted_df[SYMBOL] == symbol, CURRENT_RATIO] = yf_current_ratio
-
-# Check for stocks with AL_ratio < 2 and defer them
-AL_RATIO_THRESHOLD = 2.0
-deferred_symbols = []
-for symbol in top_symbols:
-    info = stock_info.get(symbol, {})
-    al_ratio = info.get('AL_ratio')
-    if al_ratio is not None and al_ratio < AL_RATIO_THRESHOLD:
-        # Get company name from the dataframe
-        company_name = sorted_df[sorted_df[SYMBOL] == symbol][NAME].iloc[0]
-        if defer_company_for_al_ratio(company_name, al_ratio):
-            deferred_symbols.append((symbol, company_name, al_ratio))
-
-if deferred_symbols:
-    print(f"\nDeferred {len(deferred_symbols)} companies for 6 months due to AL_ratio < {AL_RATIO_THRESHOLD}:")
-    for sym, name, ratio in deferred_symbols:
+if all_deferred_al_ratio:
+    print(f"\nDeferred {len(all_deferred_al_ratio)} companies for 6 months due to AL_ratio < {AL_RATIO_THRESHOLD}:")
+    for sym, name, ratio in all_deferred_al_ratio:
         print(f"  {sym}: {name} (AL_ratio: {ratio})")
     print()
 
-# Process fetched symbols: disqualify if year_loss or div_gaps, cache True values only
-disqualified_for_loss = []
-disqualified_for_div_gaps = []
-for symbol in top_symbols:
-    info = stock_info.get(symbol, {})
-    year_loss = info.get('year_loss')
-    has_gaps = info.get('has_gaps')
-    company_name = top_names[symbol]
-    
-    if year_loss is True:
-        if disqualify_company_for_year_loss(company_name):
-            disqualified_for_loss.append((symbol, company_name))
-    
-    if has_gaps is True:
-        if disqualify_company_for_div_gaps(company_name):
-            disqualified_for_div_gaps.append((symbol, company_name))
-    
-    # Cache only True values for year_loss, div_gaps (not AL_ratio)
-    update_stock_info_cache(company_name, info)
-
-if disqualified_for_loss:
-    print(f"\nPermanently disqualified {len(disqualified_for_loss)} companies due to year loss:")
-    for sym, name in disqualified_for_loss:
+if all_disqualified_loss:
+    print(f"\nPermanently disqualified {len(all_disqualified_loss)} companies due to year loss:")
+    for sym, name in all_disqualified_loss:
         print(f"  {sym}: {name}")
     print()
 
-if disqualified_for_div_gaps:
-    print(f"\nPermanently disqualified {len(disqualified_for_div_gaps)} companies due to dividend gaps:")
-    for sym, name in disqualified_for_div_gaps:
+if all_disqualified_div_gaps:
+    print(f"\nPermanently disqualified {len(all_disqualified_div_gaps)} companies due to dividend gaps:")
+    for sym, name in all_disqualified_div_gaps:
         print(f"  {sym}: {name}")
     print()
 
-# Collect all symbols that were deferred or disqualified during this run
-excluded_this_run = set()
-excluded_this_run.update(not_found_symbols)
-excluded_this_run.update(sym for sym, _, _ in deferred_symbols)
-excluded_this_run.update(sym for sym, _ in disqualified_for_loss)
-excluded_this_run.update(sym for sym, _ in disqualified_for_div_gaps)
+# Add info columns for processed symbols
+sorted_df = sorted_df.copy()
+sorted_df['first_div_year'] = sorted_df[SYMBOL].map(
+    lambda s: all_stock_info.get(s, {}).get('first_div_year')
+)
+sorted_df['div_gaps'] = sorted_df[SYMBOL].map(
+    lambda s: all_stock_info.get(s, {}).get('has_gaps')
+)
+sorted_df['AL_ratio'] = sorted_df[SYMBOL].map(
+    lambda s: all_stock_info.get(s, {}).get('AL_ratio')
+)
+sorted_df['year_loss'] = sorted_df[SYMBOL].map(
+    lambda s: all_stock_info.get(s, {}).get('year_loss')
+)
+sorted_df['cash_debt_ok'] = sorted_df[SYMBOL].map(
+    lambda s: all_stock_info.get(s, {}).get('cash_debt_ok')
+)
+
+# Fallback: fill NaN Current Ratio from yfinance
+for symbol in processed_symbols:
+    if symbol in all_excluded:
+        continue
+    mask = sorted_df[SYMBOL] == symbol
+    if mask.any() and pd.isna(sorted_df.loc[mask, CURRENT_RATIO].values[0]):
+        yf_current_ratio = all_stock_info.get(symbol, {}).get('current_ratio')
+        if yf_current_ratio is not None:
+            sorted_df.loc[mask, CURRENT_RATIO] = yf_current_ratio
 
 # Filter out excluded stocks from display
-display_df = sorted_df[~sorted_df[SYMBOL].isin(excluded_this_run)]
+display_df = sorted_df[
+    sorted_df[SYMBOL].isin(processed_symbols) & 
+    ~sorted_df[SYMBOL].isin(all_excluded)
+]
 
 print(display_df.head(50))
 print(len(display_df))
