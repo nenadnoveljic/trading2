@@ -553,5 +553,15 @@ if disqualified_for_div_gaps:
         print(f"  {sym}: {name}")
     print()
 
-print(sorted_df.head(50))
-print(len(sorted_df))
+# Collect all symbols that were deferred or disqualified during this run
+excluded_this_run = set()
+excluded_this_run.update(not_found_symbols)
+excluded_this_run.update(sym for sym, _, _ in deferred_symbols)
+excluded_this_run.update(sym for sym, _ in disqualified_for_loss)
+excluded_this_run.update(sym for sym, _ in disqualified_for_div_gaps)
+
+# Filter out excluded stocks from display
+display_df = sorted_df[~sorted_df[SYMBOL].isin(excluded_this_run)]
+
+print(display_df.head(50))
+print(len(display_df))
