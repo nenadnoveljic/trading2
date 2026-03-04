@@ -2,6 +2,11 @@ import time
 import yfinance as yf
 
 
+class SymbolNotFoundError(Exception):
+    """Raised when a symbol is not found (404 error)."""
+    pass
+
+
 def get_assets_liabilities_ratio(symbol: str) -> float | None:
     """
     Fetch assets/liabilities ratio from yfinance balance sheet.
@@ -56,6 +61,16 @@ def get_stock_info(symbol: str) -> dict:
     try:
         ticker = yf.Ticker(symbol)
         
+        # Check if symbol is valid by trying to get info first
+        info = ticker.info
+        # If info is empty or only has minimal fields, symbol likely doesn't exist
+        if not info or len(info) <= 1 or info.get('trailingPegRatio') is None and info.get('regularMarketPrice') is None and info.get('previousClose') is None:
+            # Check balance sheet as backup
+            balance_sheet = ticker.balance_sheet
+            financials = ticker.financials
+            if balance_sheet.empty and financials.empty:
+                raise SymbolNotFoundError(f"Symbol {symbol} not found or delisted")
+        
         # Get dividend info
         divs = ticker.dividends
         if len(divs) > 0:
@@ -80,7 +95,6 @@ def get_stock_info(symbol: str) -> dict:
             result["year_loss"] = bool((annual.loc['Net Income'] < 0).any())
         
         # Get current ratio from info
-        info = ticker.info
         if info and 'currentRatio' in info and info['currentRatio'] is not None:
             result["current_ratio"] = round(float(info['currentRatio']), 2)
         
@@ -99,8 +113,12 @@ def get_stock_info(symbol: str) -> dict:
             if cash is not None and total_debt is not None:
                 result["cash_debt_ok"] = bool((cash + receivables) >= total_debt)
         
-    except Exception:
-        pass
+    except SymbolNotFoundError:
+        raise
+    except Exception as e:
+        error_str = str(e)
+        if '404' in error_str or 'Not Found' in error_str or 'Quote not found' in error_str:
+            raise SymbolNotFoundError(f"Symbol {symbol} not found: {error_str}")
     
     return result
 
@@ -120,7 +138,7 @@ def get_dividend_info(symbol: str) -> dict:
     }
 
 
-def get_stock_info_batch(symbols: list[str], delay: float = 0.2) -> dict[str, dict]:
+def get_stock_info_batch(symbols: list[str], delay: float = 0.2) -> tuple[dict[str, dict], list[str]]:
     """
     Fetch full stock info for multiple symbols.
     
@@ -129,14 +147,28 @@ def get_stock_info_batch(symbols: list[str], delay: float = 0.2) -> dict[str, di
         delay: Delay between API calls in seconds
     
     Returns:
-        Dictionary mapping symbol to stock info dict
+        Tuple of:
+        - Dictionary mapping symbol to stock info dict
+        - List of symbols that returned 404 (not found)
     """
     result = {}
+    not_found = []
     for i, symbol in enumerate(symbols):
-        result[symbol] = get_stock_info(symbol)
+        try:
+            result[symbol] = get_stock_info(symbol)
+        except SymbolNotFoundError:
+            not_found.append(symbol)
+            result[symbol] = {
+                "first_div_year": None,
+                "has_gaps": None,
+                "AL_ratio": None,
+                "year_loss": None,
+                "current_ratio": None,
+                "cash_debt_ok": None
+            }
         if i < len(symbols) - 1:
             time.sleep(delay)
-    return result
+    return result, not_found
 
 
 def get_dividend_info_batch(symbols: list[str], delay: float = 0.2) -> dict[str, dict]:

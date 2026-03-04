@@ -20,7 +20,8 @@ INSERT INTO exclusion_reasons (code, description, is_permanent) VALUES
     ('cash_debt', 'Cash does not cover debt', FALSE),
     ('short_div_history', 'Short dividend payment history', FALSE),
     ('pe_ratio', 'P/E ratio concerns', FALSE),
-    ('not_tradeable', 'Stock is not tradeable', FALSE);
+    ('not_tradeable', 'Stock is not tradeable', FALSE),
+    ('quote_not_found', 'Quote not found (404 error from data provider)', FALSE);
 
 -- Step 2: Add foreign key columns to companies table
 ALTER TABLE companies 

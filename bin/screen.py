@@ -352,6 +352,54 @@ def defer_company_for_al_ratio(company_name: str, al_ratio: float) -> bool:
     return True
 
 
+def defer_company_for_not_found(company_name: str) -> bool:
+    """
+    Defer a company for 1 month due to symbol not found (404 error).
+    Creates the company if it doesn't exist.
+    
+    Returns True if company was deferred, False if already deferred.
+    """
+    reason_id = get_exclusion_reason_id('quote_not_found')
+    conn = get_connection()
+    cursor = conn.cursor()
+    git_commit = get_git_commit()
+    
+    cursor.execute("""
+        SELECT id, dont_consider_until, defer_reason_id 
+        FROM companies 
+        WHERE company_name = %s
+    """, (company_name,))
+    
+    row = cursor.fetchone()
+    
+    if row:
+        company_id, dont_until, existing_reason_id = row
+        # Already deferred for not_tradeable - skip
+        if dont_until and existing_reason_id == reason_id:
+            cursor.close()
+            conn.close()
+            return False
+        
+        cursor.execute("""
+            UPDATE companies 
+            SET dont_consider_until = NOW() + INTERVAL '1 month',
+                defer_reason_id = %s,
+                updated_at = NOW(),
+                updated_by = %s
+            WHERE id = %s
+        """, (reason_id, git_commit, company_id))
+    else:
+        cursor.execute("""
+            INSERT INTO companies (company_name, dont_consider_until, defer_reason_id, updated_at, updated_by)
+            VALUES (%s, NOW() + INTERVAL '1 month', %s, NOW(), %s)
+        """, (company_name, reason_id, git_commit))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return True
+
+
 # Load and merge PE/PB data
 merged_df = get_merged_pd(
     os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), 
@@ -404,7 +452,19 @@ top_names = sorted_df[sorted_df[SYMBOL].isin(top_symbols)][[SYMBOL, NAME]].set_i
 stock_info_cache = get_stock_info_cache(list(top_names.values()))
 
 # Always fetch from yfinance (AL_ratio not cached, must be fresh)
-stock_info = get_stock_info_batch(top_symbols)
+stock_info, not_found_symbols = get_stock_info_batch(top_symbols)
+
+# Defer stocks that returned 404 (not found)
+if not_found_symbols:
+    deferred_not_found = []
+    for symbol in not_found_symbols:
+        company_name = top_names[symbol]
+        if defer_company_for_not_found(company_name):
+            deferred_not_found.append((symbol, company_name))
+    if deferred_not_found:
+        print(f"\nDeferred {len(deferred_not_found)} companies for 1 month (symbol not found):")
+        for sym, name in deferred_not_found:
+            print(f"  {sym}: {name}")
 
 # Override with cached True values (these are permanent facts)
 for symbol in top_symbols:
