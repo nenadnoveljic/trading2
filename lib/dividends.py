@@ -7,6 +7,21 @@ class SymbolNotFoundError(Exception):
     pass
 
 
+# Symbol suffix translations for yfinance compatibility
+SYMBOL_SUFFIX_MAP = {
+    '.KO': '.KS',   # Korean KOSPI: MarketInOut uses .KO, yfinance uses .KS
+    '.BV': '.SA',   # Brazilian: MarketInOut uses .BV, yfinance uses .SA
+}
+
+
+def translate_symbol_for_yfinance(symbol: str) -> str:
+    """Translate symbol suffix for yfinance compatibility."""
+    for old_suffix, new_suffix in SYMBOL_SUFFIX_MAP.items():
+        if symbol.endswith(old_suffix):
+            return symbol[:-len(old_suffix)] + new_suffix
+    return symbol
+
+
 def get_assets_liabilities_ratio(symbol: str) -> float | None:
     """
     Fetch assets/liabilities ratio from yfinance balance sheet.
@@ -14,7 +29,8 @@ def get_assets_liabilities_ratio(symbol: str) -> float | None:
     Returns Total Assets / Total Liabilities, or None if unavailable.
     """
     try:
-        ticker = yf.Ticker(symbol)
+        yf_symbol = translate_symbol_for_yfinance(symbol)
+        ticker = yf.Ticker(yf_symbol)
         balance_sheet = ticker.balance_sheet
         
         if balance_sheet.empty:
@@ -58,8 +74,10 @@ def get_stock_info(symbol: str) -> dict:
         "cash_debt_ok": None
     }
     
+    yf_symbol = translate_symbol_for_yfinance(symbol)
+    
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(yf_symbol)
         
         # Check if symbol is valid by trying to get info first
         info = ticker.info
@@ -138,13 +156,14 @@ def get_dividend_info(symbol: str) -> dict:
     }
 
 
-def get_stock_info_batch(symbols: list[str], delay: float = 0.2) -> tuple[dict[str, dict], list[str]]:
+def get_stock_info_batch(symbols: list[str], delay: float = 0.2, names: dict[str, str] = None) -> tuple[dict[str, dict], list[str]]:
     """
     Fetch full stock info for multiple symbols.
     
     Args:
         symbols: List of stock symbols
         delay: Delay between API calls in seconds
+        names: Optional dict mapping symbol to company name for better error messages
     
     Returns:
         Tuple of:
@@ -157,6 +176,9 @@ def get_stock_info_batch(symbols: list[str], delay: float = 0.2) -> tuple[dict[s
         try:
             result[symbol] = get_stock_info(symbol)
         except SymbolNotFoundError:
+            name = names.get(symbol, '') if names else ''
+            name_str = f" ({name})" if name else ""
+            print(f"  -> {symbol}{name_str}: quote not found, deferring for 1 month")
             not_found.append(symbol)
             result[symbol] = {
                 "first_div_year": None,

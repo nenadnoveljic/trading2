@@ -452,7 +452,7 @@ top_names = sorted_df[sorted_df[SYMBOL].isin(top_symbols)][[SYMBOL, NAME]].set_i
 stock_info_cache = get_stock_info_cache(list(top_names.values()))
 
 # Always fetch from yfinance (AL_ratio not cached, must be fresh)
-stock_info, not_found_symbols = get_stock_info_batch(top_symbols)
+stock_info, not_found_symbols = get_stock_info_batch(top_symbols, names=top_names)
 
 # Defer stocks that returned 404 (not found)
 if not_found_symbols:
