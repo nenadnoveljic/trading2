@@ -58,8 +58,13 @@ def download(driver: webdriver, url: str, download_url: str, downloaded_file: st
         EC.presence_of_element_located((By.XPATH, "//img[@src='/img/svg/excel.svg' and @alt='Export to CSV']"))
     )
     downloaded_file = os.path.join(DOWNLOAD_DIR, downloaded_file)
+    wait_time = 0
+    max_wait = 60  # timeout after 60 seconds
     while not os.path.exists(downloaded_file):
         time.sleep(1)
+        wait_time += 1
+        if wait_time >= max_wait:
+            raise TimeoutError(f"Download timed out waiting for {downloaded_file}")
     destination_file = os.path.join(COPIED_DOWNLOADS_DIR, destination)
     print(f"Moving {downloaded_file} to {destination_file}")
     move(downloaded_file, destination_file)
