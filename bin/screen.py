@@ -92,6 +92,56 @@ def get_excluded_company_names() -> set[str]:
     return names
 
 
+def get_last_exclusion_reasons(symbols: list[str], company_names: list[str]) -> dict[str, str]:
+    """Get the last exclusion reason for displayed stocks.
+
+    Checks two sources:
+    - Company-level: expired deferrals (dont_consider_until in the past)
+    - Market-level: expired market restrictions (not_tradeable_until in the past)
+
+    Returns dict of company_name -> reason code.
+    """
+    if not company_names:
+        return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+    result = {}
+
+    name_ph = ','.join(['%s'] * len(company_names))
+    cursor.execute(f"""
+        SELECT c.company_name, er.code
+        FROM companies c
+        JOIN exclusion_reasons er ON c.defer_reason_id = er.id
+        WHERE c.company_name IN ({name_ph})
+          AND c.is_disqualified = FALSE
+          AND c.dont_consider_until IS NOT NULL
+          AND c.dont_consider_until <= NOW()
+    """, company_names)
+    for row in cursor.fetchall():
+        result[row[0]] = row[1]
+
+    cursor.execute("""
+        SELECT abbreviation
+        FROM stock_markets
+        WHERE not_tradeable_until IS NOT NULL
+          AND not_tradeable_until <= NOW()
+    """)
+    expired_markets = {row[0] for row in cursor.fetchall()}
+
+    if expired_markets:
+        sym_to_name = dict(zip(symbols, company_names))
+        for symbol, name in sym_to_name.items():
+            if name in result:
+                continue
+            suffix = symbol.rsplit('.', 1)[-1] if '.' in symbol else None
+            if suffix and suffix in expired_markets:
+                result[name] = 'market: ' + suffix
+
+    cursor.close()
+    conn.close()
+    return result
+
+
 def get_deferred_market_suffixes() -> set[str]:
     """Get market suffixes that are currently deferred."""
     conn = get_connection()
@@ -591,7 +641,10 @@ for symbol in processed_symbols:
 display_df = sorted_df[
     sorted_df[SYMBOL].isin(processed_symbols) & 
     ~sorted_df[SYMBOL].isin(all_excluded)
-]
+].copy()
+
+last_reasons = get_last_exclusion_reasons(display_df[SYMBOL].tolist(), display_df[NAME].tolist())
+display_df['last_exclusion'] = display_df[NAME].map(last_reasons)
 
 print(display_df.head(50))
 print(len(display_df))
