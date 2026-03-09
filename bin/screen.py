@@ -646,5 +646,15 @@ display_df = sorted_df[
 last_reasons = get_last_exclusion_reasons(display_df[SYMBOL].tolist(), display_df[NAME].tolist())
 display_df['last_exclusion'] = display_df[NAME].map(last_reasons)
 
+display_df = display_df.rename(columns={
+    'P / E': 'PE',
+    'Price / Book Ratio': 'PB',
+    'Current Ratio': 'CR',
+    'quartal_loss': 'q_loss',
+    'first_div_year': '1st_div',
+    'cash_debt_ok': 'cash_ok',
+    'last_exclusion': 'last_excl',
+})
+
 print(display_df.head(50))
 print(len(display_df))

@@ -15,7 +15,7 @@ def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     pe_df = pd.read_csv(pe_file, encoding='latin-1')
     pb_df = pd.read_csv(pb_file, encoding='latin-1')
     
-    pe_df = pe_df[[SYMBOL, NAME, PE, "EPS"]]
+    pe_df = pe_df[[SYMBOL, NAME, PE]]
     pb_df = pb_df[[SYMBOL, PB, CURRENT_RATIO]]
 
     merged_df = pd.merge(pe_df, pb_df, on=SYMBOL)
