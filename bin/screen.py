@@ -450,6 +450,53 @@ def defer_company_for_not_found(company_name: str) -> bool:
     return True
 
 
+def defer_company_for_cash_debt(company_name: str) -> bool:
+    """
+    Defer a company for 3 months due to cash not covering debt.
+    Creates the company if it doesn't exist.
+    
+    Returns True if company was deferred, False if already deferred.
+    """
+    reason_id = get_exclusion_reason_id('cash_debt')
+    conn = get_connection()
+    cursor = conn.cursor()
+    git_commit = get_git_commit()
+    
+    cursor.execute("""
+        SELECT id, dont_consider_until, defer_reason_id 
+        FROM companies 
+        WHERE company_name = %s
+    """, (company_name,))
+    
+    row = cursor.fetchone()
+    
+    if row:
+        company_id, dont_until, existing_reason_id = row
+        if dont_until and existing_reason_id == reason_id:
+            cursor.close()
+            conn.close()
+            return False
+        
+        cursor.execute("""
+            UPDATE companies 
+            SET dont_consider_until = NOW() + INTERVAL '3 months',
+                defer_reason_id = %s,
+                updated_at = NOW(),
+                updated_by = %s
+            WHERE id = %s
+        """, (reason_id, git_commit, company_id))
+    else:
+        cursor.execute("""
+            INSERT INTO companies (company_name, dont_consider_until, defer_reason_id, updated_at, updated_by)
+            VALUES (%s, NOW() + INTERVAL '3 months', %s, NOW(), %s)
+        """, (company_name, reason_id, git_commit))
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return True
+
+
 CURRENT_RATIO_THRESHOLD = 1.5
 AL_RATIO_THRESHOLD = 1.5
 
@@ -503,6 +550,7 @@ all_stock_info = {}
 all_excluded = set()
 all_deferred_not_found = []
 all_deferred_al_ratio = []
+all_deferred_cash_debt = []
 all_disqualified_loss = []
 all_disqualified_div_gaps = []
 
@@ -567,6 +615,12 @@ while True:
                 all_disqualified_loss.append((symbol, company_name))
             all_excluded.add(symbol)
         
+        # Check cash_debt_ok
+        if info.get('cash_debt_ok') is False:
+            if defer_company_for_cash_debt(company_name):
+                all_deferred_cash_debt.append((symbol, company_name))
+            all_excluded.add(symbol)
+        
         # Check div_gaps
         if info.get('has_gaps') is True:
             if disqualify_company_for_div_gaps(company_name):
@@ -596,6 +650,12 @@ if all_deferred_al_ratio:
     print(f"\nDeferred {len(all_deferred_al_ratio)} companies for 6 months due to AL_ratio < {AL_RATIO_THRESHOLD}:")
     for sym, name, ratio in all_deferred_al_ratio:
         print(f"  {sym}: {name} (AL_ratio: {ratio})")
+    print()
+
+if all_deferred_cash_debt:
+    print(f"\nDeferred {len(all_deferred_cash_debt)} companies for 3 months (cash doesn't cover debt):")
+    for sym, name in all_deferred_cash_debt:
+        print(f"  {sym}: {name}")
     print()
 
 if all_disqualified_loss:
