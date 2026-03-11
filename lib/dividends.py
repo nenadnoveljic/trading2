@@ -53,6 +53,85 @@ def get_assets_liabilities_ratio(symbol: str) -> float | None:
         return None
 
 
+def _detect_year_loss(ticker) -> bool | None:
+    """Detect if company had any year with net loss. Returns True/False/None."""
+    import pandas as pd
+
+    def _find_net_income_row(df):
+        preferred = ['NetIncome', 'Net Income', 'NetIncomeCommonStockholders', 'NetIncomeContinuousOperations']
+        for r in preferred:
+            if r in df.index:
+                return r
+        for idx in df.index:
+            s = str(idx).lower().replace(' ', '')
+            if 'netincome' in s or 'net income' in s:
+                return idx
+        return None
+
+    def _has_negative(series):
+        numeric = pd.to_numeric(series, errors='coerce')
+        return bool((numeric < 0).any())
+
+    # Try yfinance: check both annual and quarterly (quarterly can reveal losses in years not in annual window)
+    for freq in ['yearly', 'quarterly']:
+        df = None
+        if hasattr(ticker, 'get_income_stmt'):
+            try:
+                df = ticker.get_income_stmt(pretty=True, freq=freq)
+            except Exception:
+                pass
+        if df is None or df.empty:
+            df = ticker.financials if freq == 'yearly' else getattr(ticker, 'quarterly_financials', pd.DataFrame())
+        if df is None:
+            df = pd.DataFrame()
+
+        if not df.empty:
+            row = _find_net_income_row(df)
+            if row is not None:
+                series = df.loc[row]
+                numeric = pd.to_numeric(series, errors='coerce')
+                if freq == 'quarterly':
+                    try:
+                        years = pd.to_datetime(numeric.index).year
+                        yearly = numeric.groupby(years).sum()
+                        if (yearly < 0).any():
+                            return True
+                    except Exception:
+                        if (numeric < 0).any():
+                            return True
+                else:
+                    if _has_negative(series):
+                        return True
+
+    # Fallback: Yahoo quoteSummary API (works when timeseries returns empty, e.g. Canadian tickers)
+    try:
+        data = getattr(ticker, '_data', None)
+        if data is not None and hasattr(data, 'cache_get'):
+            url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker.ticker}?modules=incomeStatementHistory,incomeStatementHistoryQuarterly"
+            resp = data.cache_get(url=url)
+            if resp.status_code == 200:
+                js = resp.json()
+                result = js.get('quoteSummary', {}).get('result', [{}])
+                if result:
+                    found_any = False
+                    for module in ['incomeStatementHistory', 'incomeStatementHistoryQuarterly']:
+                        mod_data = result[0].get(module, {})
+                        for stmt in mod_data.get('incomeStatementHistory', []):
+                            ni = stmt.get('netIncome')
+                            if isinstance(ni, dict):
+                                raw = ni.get('raw')
+                                if raw is not None:
+                                    found_any = True
+                                    if raw < 0:
+                                        return True
+                    if found_any:
+                        return False
+    except Exception:
+        pass
+
+    return None
+
+
 def get_stock_info(symbol: str) -> dict:
     """
     Fetch financial information for a symbol.
@@ -108,9 +187,8 @@ def get_stock_info(symbol: str) -> dict:
         result["AL_ratio"] = get_assets_liabilities_ratio(symbol)
         
         # Check for annual losses
-        annual = ticker.financials
-        if not annual.empty and 'Net Income' in annual.index:
-            result["year_loss"] = bool((annual.loc['Net Income'] < 0).any())
+        # Try multiple data sources; quarterly fallback when annual is empty (e.g. Canadian tickers)
+        result["year_loss"] = _detect_year_loss(ticker)
         
         # Get current ratio from info
         if info and 'currentRatio' in info and info['currentRatio'] is not None:

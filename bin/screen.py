@@ -450,6 +450,9 @@ def defer_company_for_not_found(company_name: str) -> bool:
     return True
 
 
+CURRENT_RATIO_THRESHOLD = 1.5
+AL_RATIO_THRESHOLD = 1.5
+
 # Load and merge PE/PB data
 merged_df = get_merged_pd(
     os.path.join(COPIED_DOWNLOADS_DIR, 'PE.csv'), 
@@ -475,9 +478,8 @@ if deferred_suffixes:
         ~filtered_df[SYMBOL].apply(lambda s: any(s.endswith(suffix) for suffix in deferred_suffixes))
     ]
 
-# Filter: keep only Current Ratio >= 2 or NaN (unknown)
 filtered_df = filtered_df[
-    (filtered_df[CURRENT_RATIO] >= 2) | (filtered_df[CURRENT_RATIO].isna())
+    (filtered_df[CURRENT_RATIO] >= CURRENT_RATIO_THRESHOLD) | (filtered_df[CURRENT_RATIO].isna())
 ]
 
 # Get quarterly loss status from database (True/False/None) by company name
@@ -496,7 +498,6 @@ sorted_df = sorted_df.drop(columns=['_sort_loss'])
 # Fetch stock info iteratively until we have MIN_DISPLAY_COUNT valid stocks
 MIN_DISPLAY_COUNT = 5
 BATCH_SIZE = 10
-AL_RATIO_THRESHOLD = 2.0
 
 all_stock_info = {}
 all_excluded = set()
