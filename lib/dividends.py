@@ -53,8 +53,14 @@ def get_assets_liabilities_ratio(symbol: str) -> float | None:
         return None
 
 
-def _detect_year_loss(ticker) -> bool | None:
-    """Detect if company had any year with net loss. Returns True/False/None."""
+def _detect_year_loss(ticker) -> int | None:
+    """Detect the most recent year with a net loss.
+
+    Returns:
+        int: Most recent year with a net loss (e.g. 2018)
+        0:   Checked successfully, no loss found
+        None: Could not determine
+    """
     import pandas as pd
 
     def _find_net_income_row(df):
@@ -68,11 +74,9 @@ def _detect_year_loss(ticker) -> bool | None:
                 return idx
         return None
 
-    def _has_negative(series):
-        numeric = pd.to_numeric(series, errors='coerce')
-        return bool((numeric < 0).any())
-
     # Try yfinance: check both annual and quarterly (quarterly can reveal losses in years not in annual window)
+    got_data = False
+    max_loss_year = None
     for freq in ['yearly', 'quarterly']:
         df = None
         if hasattr(ticker, 'get_income_stmt'):
@@ -88,23 +92,45 @@ def _detect_year_loss(ticker) -> bool | None:
         if not df.empty:
             row = _find_net_income_row(df)
             if row is not None:
+                got_data = True
                 series = df.loc[row]
                 numeric = pd.to_numeric(series, errors='coerce')
                 if freq == 'quarterly':
                     try:
                         years = pd.to_datetime(numeric.index).year
                         yearly = numeric.groupby(years).sum()
-                        if (yearly < 0).any():
-                            return True
+                        loss_years = yearly[yearly < 0].index.tolist()
+                        if loss_years:
+                            year = int(max(loss_years))
+                            if max_loss_year is None or year > max_loss_year:
+                                max_loss_year = year
                     except Exception:
-                        if (numeric < 0).any():
-                            return True
+                        loss_mask = numeric < 0
+                        if loss_mask.any():
+                            try:
+                                loss_years = pd.to_datetime(numeric[loss_mask].index).year.tolist()
+                                year = int(max(loss_years))
+                                if max_loss_year is None or year > max_loss_year:
+                                    max_loss_year = year
+                            except Exception:
+                                pass
                 else:
-                    if _has_negative(series):
-                        return True
+                    loss_mask = numeric < 0
+                    if loss_mask.any():
+                        try:
+                            loss_years = pd.to_datetime(numeric[loss_mask].index).year.tolist()
+                            year = int(max(loss_years))
+                            if max_loss_year is None or year > max_loss_year:
+                                max_loss_year = year
+                        except Exception:
+                            pass
+
+    if got_data:
+        return max_loss_year if max_loss_year is not None else 0
 
     # Fallback: Yahoo quoteSummary API (works when timeseries returns empty, e.g. Canadian tickers)
     try:
+        import datetime
         data = getattr(ticker, '_data', None)
         if data is not None and hasattr(data, 'cache_get'):
             url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker.ticker}?modules=incomeStatementHistory,incomeStatementHistoryQuarterly"
@@ -114,6 +140,7 @@ def _detect_year_loss(ticker) -> bool | None:
                 result = js.get('quoteSummary', {}).get('result', [{}])
                 if result:
                     found_any = False
+                    fallback_max_loss_year = None
                     for module in ['incomeStatementHistory', 'incomeStatementHistoryQuarterly']:
                         mod_data = result[0].get(module, {})
                         for stmt in mod_data.get('incomeStatementHistory', []):
@@ -123,9 +150,14 @@ def _detect_year_loss(ticker) -> bool | None:
                                 if raw is not None:
                                     found_any = True
                                     if raw < 0:
-                                        return True
+                                        end_date = stmt.get('endDate', {})
+                                        ts = end_date.get('raw') if isinstance(end_date, dict) else None
+                                        if ts is not None:
+                                            year = datetime.datetime.utcfromtimestamp(ts).year
+                                            if fallback_max_loss_year is None or year > fallback_max_loss_year:
+                                                fallback_max_loss_year = year
                     if found_any:
-                        return False
+                        return fallback_max_loss_year if fallback_max_loss_year is not None else 0
     except Exception:
         pass
 
@@ -140,7 +172,7 @@ def get_stock_info(symbol: str) -> dict:
         - first_div_year: Year of first dividend (int or None)
         - has_gaps: Whether there are gaps in annual dividends (bool or None)
         - AL_ratio: Total Assets / Total Liabilities (float or None)
-        - year_loss: Whether any year had a net loss (bool or None)
+        - year_loss: int | None — year of most recent net loss, 0=no loss, None=unknown
         - current_ratio: Current Ratio from yfinance (float or None)
         - cash_debt_ok: Whether Cash + Receivables >= Total Debt (bool or None)
     """
