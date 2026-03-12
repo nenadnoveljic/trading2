@@ -75,8 +75,14 @@ def _detect_year_loss(ticker) -> int | None:
         return None
 
     # Try yfinance: check both annual and quarterly (quarterly can reveal losses in years not in annual window)
+    import datetime as _dt
+    LOOKBACK_YEARS = 20
+    cutoff_year = _dt.date.today().year - LOOKBACK_YEARS
+
     got_data = False
     max_loss_year = None
+    oldest_year_seen = None  # track how far back the data goes
+
     for freq in ['yearly', 'quarterly']:
         df = None
         if hasattr(ticker, 'get_income_stmt'):
@@ -95,6 +101,13 @@ def _detect_year_loss(ticker) -> int | None:
                 got_data = True
                 series = df.loc[row]
                 numeric = pd.to_numeric(series, errors='coerce')
+                try:
+                    col_years = pd.to_datetime(numeric.index).year
+                    oldest = int(col_years.min())
+                    if oldest_year_seen is None or oldest < oldest_year_seen:
+                        oldest_year_seen = oldest
+                except Exception:
+                    pass
                 if freq == 'quarterly':
                     try:
                         years = pd.to_datetime(numeric.index).year
@@ -126,11 +139,15 @@ def _detect_year_loss(ticker) -> int | None:
                             pass
 
     if got_data:
-        return max_loss_year if max_loss_year is not None else 0
+        if max_loss_year is not None:
+            return max_loss_year
+        # Data found but no loss — only mark clean if coverage reaches the cutoff year
+        if oldest_year_seen is not None and oldest_year_seen <= cutoff_year:
+            return 0
+        return None  # data too recent to rule out older losses
 
     # Fallback: Yahoo quoteSummary API (works when timeseries returns empty, e.g. Canadian tickers)
     try:
-        import datetime
         data = getattr(ticker, '_data', None)
         if data is not None and hasattr(data, 'cache_get'):
             url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker.ticker}?modules=incomeStatementHistory,incomeStatementHistoryQuarterly"
@@ -141,6 +158,7 @@ def _detect_year_loss(ticker) -> int | None:
                 if result:
                     found_any = False
                     fallback_max_loss_year = None
+                    fallback_oldest_year = None
                     for module in ['incomeStatementHistory', 'incomeStatementHistoryQuarterly']:
                         mod_data = result[0].get(module, {})
                         for stmt in mod_data.get('incomeStatementHistory', []):
@@ -149,15 +167,21 @@ def _detect_year_loss(ticker) -> int | None:
                                 raw = ni.get('raw')
                                 if raw is not None:
                                     found_any = True
-                                    if raw < 0:
-                                        end_date = stmt.get('endDate', {})
-                                        ts = end_date.get('raw') if isinstance(end_date, dict) else None
-                                        if ts is not None:
-                                            year = datetime.datetime.utcfromtimestamp(ts).year
+                                    end_date = stmt.get('endDate', {})
+                                    ts = end_date.get('raw') if isinstance(end_date, dict) else None
+                                    if ts is not None:
+                                        year = _dt.datetime.utcfromtimestamp(ts).year
+                                        if fallback_oldest_year is None or year < fallback_oldest_year:
+                                            fallback_oldest_year = year
+                                        if raw < 0:
                                             if fallback_max_loss_year is None or year > fallback_max_loss_year:
                                                 fallback_max_loss_year = year
                     if found_any:
-                        return fallback_max_loss_year if fallback_max_loss_year is not None else 0
+                        if fallback_max_loss_year is not None:
+                            return fallback_max_loss_year
+                        if fallback_oldest_year is not None and fallback_oldest_year <= cutoff_year:
+                            return 0
+                        return None  # data too recent to rule out older losses
     except Exception:
         pass
 
