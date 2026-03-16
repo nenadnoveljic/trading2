@@ -189,7 +189,7 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
     """
     Get cached stock info for companies.
 
-    Returns: year_loss (int or None), first_div_year, has_gaps
+    Returns: year_loss (int or None), first_div_year, last_no_div_year (int or None)
     Does NOT return: AL_ratio (not cached, always fetch fresh)
     """
     if not company_names:
@@ -200,7 +200,7 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
 
     placeholders = ','.join(['%s'] * len(company_names))
     cursor.execute(f"""
-        SELECT company_name, last_year_loss, first_div_year, has_div_gaps
+        SELECT company_name, last_year_loss, first_div_year, last_no_div_year, first_div_year_verified
         FROM companies
         WHERE company_name IN ({placeholders})
     """, company_names)
@@ -210,7 +210,8 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
         result[row[0]] = {
             'year_loss': row[1],   # int or None
             'first_div_year': row[2],
-            'has_gaps': row[3]
+            'last_no_div_year': row[3],  # int or None
+            'first_div_year_verified': row[4],  # bool
         }
 
     cursor.close()
@@ -219,55 +220,12 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
 
 
 
-def disqualify_company_for_div_gaps(company_name: str) -> bool:
-    """
-    Permanently disqualify a company due to dividend gaps.
-    Creates the company if it doesn't exist.
-    
-    Returns True if company was disqualified, False if already disqualified.
-    """
-    reason_id = get_exclusion_reason_id('dividends_gap')
-    conn = get_connection()
-    cursor = conn.cursor()
-    git_commit = get_git_commit()
-    
-    cursor.execute("SELECT id, is_disqualified FROM companies WHERE company_name = %s", (company_name,))
-    row = cursor.fetchone()
-    
-    if row:
-        company_id, is_disqualified = row
-        if is_disqualified:
-            cursor.close()
-            conn.close()
-            return False
-        
-        cursor.execute("""
-            UPDATE companies 
-            SET is_disqualified = TRUE,
-                disqualified_reason_id = %s,
-                has_div_gaps = TRUE,
-                updated_at = NOW(),
-                updated_by = %s
-            WHERE id = %s
-        """, (reason_id, git_commit, company_id))
-    else:
-        cursor.execute("""
-            INSERT INTO companies (company_name, is_disqualified, disqualified_reason_id, has_div_gaps, updated_at, updated_by)
-            VALUES (%s, TRUE, %s, TRUE, NOW(), %s)
-        """, (company_name, reason_id, git_commit))
-    
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return True
-
-
 def update_stock_info_cache(company_name: str, stock_info: dict):
     """
     Update cached stock info for a company (creates if not exists).
 
-    Caches any non-None int for year_loss (uses GREATEST logic to never downgrade a known loss year).
-    Also caches: first_div_year, has_gaps
+    Caches any non-None int for year_loss and last_no_div_year (uses GREATEST logic to never downgrade).
+    Also caches: first_div_year
     Does NOT cache: AL_ratio (always fetch fresh)
     """
     conn = get_connection()
@@ -275,11 +233,11 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
     git_commit = get_git_commit()
 
     year_loss = stock_info.get('year_loss')  # int or None; cache if not None
-    has_gaps = stock_info.get('has_gaps') if stock_info.get('has_gaps') is True else None
+    last_no_div_year = stock_info.get('last_no_div_year')  # int or None; cache if not None
     first_div_year = stock_info.get('first_div_year')
 
     # Skip if nothing to cache
-    if year_loss is None and has_gaps is None and first_div_year is None:
+    if year_loss is None and last_no_div_year is None and first_div_year is None:
         cursor.close()
         conn.close()
         return
@@ -294,17 +252,22 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
                     WHEN %s IS NOT NULL AND %s > COALESCE(last_year_loss, -1) THEN %s
                     ELSE last_year_loss
                 END,
+                last_no_div_year = CASE
+                    WHEN %s IS NOT NULL AND %s > COALESCE(last_no_div_year, -1) THEN %s
+                    ELSE last_no_div_year
+                END,
                 first_div_year = COALESCE(%s, first_div_year),
-                has_div_gaps = COALESCE(%s, has_div_gaps),
                 updated_at = NOW(),
                 updated_by = %s
             WHERE id = %s
-        """, (year_loss, year_loss, year_loss, first_div_year, has_gaps, git_commit, row[0]))
+        """, (year_loss, year_loss, year_loss,
+              last_no_div_year, last_no_div_year, last_no_div_year,
+              first_div_year, git_commit, row[0]))
     else:
         cursor.execute("""
-            INSERT INTO companies (company_name, last_year_loss, first_div_year, has_div_gaps, updated_at, updated_by)
+            INSERT INTO companies (company_name, last_year_loss, last_no_div_year, first_div_year, updated_at, updated_by)
             VALUES (%s, %s, %s, %s, NOW(), %s)
-        """, (company_name, year_loss, first_div_year, has_gaps, git_commit))
+        """, (company_name, year_loss, last_no_div_year, first_div_year, git_commit))
 
     conn.commit()
     cursor.close()
@@ -460,6 +423,8 @@ def defer_company_for_cash_debt(company_name: str) -> bool:
 CURRENT_RATIO_THRESHOLD = 1.5
 AL_RATIO_THRESHOLD = 1.5
 YEAR_LOSS_LOOKBACK = 20
+FIRST_DIV_HISTORY_YEARS = 10
+
 
 # Load and merge PE/PB data
 merged_df = get_merged_pd(
@@ -513,7 +478,8 @@ all_deferred_not_found = []
 all_deferred_al_ratio = []
 all_deferred_cash_debt = []
 all_excluded_loss = []
-all_disqualified_div_gaps = []
+all_excluded_div_gaps = []
+all_excluded_short_div_history = []
 
 # Track which symbols we've already processed
 processed_symbols = set()
@@ -552,8 +518,10 @@ while True:
             fresh_year = stock_info[symbol].get('year_loss')
             if cached_year is not None and (fresh_year is None or cached_year > fresh_year):
                 stock_info[symbol]['year_loss'] = cached_year
-            if cached.get('has_gaps') is True:
-                stock_info[symbol]['has_gaps'] = True
+            cached_div = cached.get('last_no_div_year')
+            fresh_div = stock_info[symbol].get('last_no_div_year')
+            if cached_div is not None and (fresh_div is None or cached_div > fresh_div):
+                stock_info[symbol]['last_no_div_year'] = cached_div
             if cached.get('first_div_year') is not None:
                 stock_info[symbol]['first_div_year'] = cached['first_div_year']
     
@@ -585,12 +553,21 @@ while True:
                 all_deferred_cash_debt.append((symbol, company_name))
             all_excluded.add(symbol)
         
-        # Check div_gaps
-        if info.get('has_gaps') is True:
-            if disqualify_company_for_div_gaps(company_name):
-                all_disqualified_div_gaps.append((symbol, company_name))
+        # Check last_no_div_year (exclude if gap within last 20 years)
+        last_no_div = info.get('last_no_div_year')
+        if last_no_div is not None and last_no_div > 0 and last_no_div >= (current_year - YEAR_LOSS_LOOKBACK):
+            all_excluded_div_gaps.append((symbol, company_name, last_no_div))
             all_excluded.add(symbol)
-        
+
+        # Check first_div_year (only filter when manually verified)
+        if company_name in stock_info_cache:
+            cached_verified = stock_info_cache[company_name]
+            first_div_verified = cached_verified.get('first_div_year_verified')
+            first_div_cached = cached_verified.get('first_div_year')
+            if first_div_verified and first_div_cached is not None and first_div_cached > (current_year - FIRST_DIV_HISTORY_YEARS):
+                all_excluded_short_div_history.append((symbol, company_name, first_div_cached))
+                all_excluded.add(symbol)
+
         # Cache info
         update_stock_info_cache(company_name, info)
         
@@ -628,10 +605,16 @@ if all_excluded_loss:
         print(f"  {sym}: {name} (last loss: {year})")
     print()
 
-if all_disqualified_div_gaps:
-    print(f"\nPermanently disqualified {len(all_disqualified_div_gaps)} companies due to dividend gaps:")
-    for sym, name in all_disqualified_div_gaps:
-        print(f"  {sym}: {name}")
+if all_excluded_div_gaps:
+    print(f"\nExcluded {len(all_excluded_div_gaps)} companies due to dividend gaps (within {YEAR_LOSS_LOOKBACK} years):")
+    for sym, name, year in all_excluded_div_gaps:
+        print(f"  {sym}: {name} (last gap: {year})")
+    print()
+
+if all_excluded_short_div_history:
+    print(f"\nExcluded {len(all_excluded_short_div_history)} companies due to short dividend history (< {FIRST_DIV_HISTORY_YEARS} years):")
+    for sym, name, year in all_excluded_short_div_history:
+        print(f"  {sym}: {name} (first div: {year})")
     print()
 
 # Final check: re-read last_year_loss from DB for survivors and apply 20-year filter
@@ -647,15 +630,31 @@ if survivors:
         db_year = cached.get('year_loss')
         if db_year is not None and db_year > 0 and db_year >= (current_year - YEAR_LOSS_LOOKBACK):
             all_excluded.add(symbol)
+        db_div = cached.get('last_no_div_year')
+        if db_div is not None and db_div > 0 and db_div >= (current_year - YEAR_LOSS_LOOKBACK):
+            all_excluded.add(symbol)
+        db_first_div = cached.get('first_div_year')
+        if cached.get('first_div_year_verified') and db_first_div is not None and db_first_div > (current_year - FIRST_DIV_HISTORY_YEARS):
+            all_excluded.add(symbol)
 
 # Add info columns for processed symbols
 sorted_df = sorted_df.copy()
-sorted_df['first_div_year'] = sorted_df[SYMBOL].map(
-    lambda s: all_stock_info.get(s, {}).get('first_div_year')
+verified_first_div_names = {
+    name for name, cached in final_cache.items()
+    if cached.get('first_div_year_verified')
+} if survivors else set()
+display_names = sorted_df[NAME]
+sorted_df['first_div_year'] = sorted_df.apply(
+    lambda row: (
+        str(all_stock_info.get(row[SYMBOL], {}).get('first_div_year')) + '*'
+        if row[NAME] in verified_first_div_names and all_stock_info.get(row[SYMBOL], {}).get('first_div_year') is not None
+        else all_stock_info.get(row[SYMBOL], {}).get('first_div_year')
+    ),
+    axis=1
 )
 sorted_df['div_gaps'] = sorted_df[SYMBOL].map(
-    lambda s: all_stock_info.get(s, {}).get('has_gaps')
-)
+    lambda s: all_stock_info.get(s, {}).get('last_no_div_year')
+).astype('Int64')
 sorted_df['AL_ratio'] = sorted_df[SYMBOL].map(
     lambda s: all_stock_info.get(s, {}).get('AL_ratio')
 )

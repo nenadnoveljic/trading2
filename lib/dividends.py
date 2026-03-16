@@ -194,7 +194,7 @@ def get_stock_info(symbol: str) -> dict:
     
     Returns dict with:
         - first_div_year: Year of first dividend (int or None)
-        - has_gaps: Whether there are gaps in annual dividends (bool or None)
+        - last_no_div_year: int | None — most recent year with no dividend, 0=no gap, None=unknown
         - AL_ratio: Total Assets / Total Liabilities (float or None)
         - year_loss: int | None — year of most recent net loss, 0=no loss, None=unknown
         - current_ratio: Current Ratio from yfinance (float or None)
@@ -202,7 +202,7 @@ def get_stock_info(symbol: str) -> dict:
     """
     result = {
         "first_div_year": None,
-        "has_gaps": None,
+        "last_no_div_year": None,
         "AL_ratio": None,
         "year_loss": None,
         "current_ratio": None,
@@ -225,19 +225,25 @@ def get_stock_info(symbol: str) -> dict:
                 raise SymbolNotFoundError(f"Symbol {symbol} not found or delisted")
         
         # Get dividend info
+        import datetime as _dt
         divs = ticker.dividends
         if len(divs) > 0:
             first_year = divs.index.min().year
             last_year = divs.index.max().year
             result["first_div_year"] = first_year
-            
+
             dividend_years = set(divs.index.year)
-            if last_year > first_year:
-                expected_years = set(range(first_year, last_year + 1))
+            cutoff_year = _dt.date.today().year - 20
+            check_start = max(first_year, cutoff_year)
+            if last_year > check_start:
+                expected_years = set(range(check_start, last_year + 1))
                 missing_years = expected_years - dividend_years
-                result["has_gaps"] = len(missing_years) > 0
+                if missing_years:
+                    result["last_no_div_year"] = max(missing_years)
+                else:
+                    result["last_no_div_year"] = 0
             else:
-                result["has_gaps"] = False
+                result["last_no_div_year"] = 0
         
         # Get assets/liabilities ratio
         result["AL_ratio"] = get_assets_liabilities_ratio(symbol)
@@ -278,15 +284,15 @@ def get_stock_info(symbol: str) -> dict:
 def get_dividend_info(symbol: str) -> dict:
     """
     Fetch dividend information for a symbol.
-    
+
     Returns dict with:
         - first_div_year: Year of first dividend (int or None)
-        - has_gaps: Whether there are gaps in annual dividends (bool or None)
+        - last_no_div_year: int | None — most recent year with no dividend, 0=no gap, None=unknown
     """
     info = get_stock_info(symbol)
     return {
         "first_div_year": info["first_div_year"],
-        "has_gaps": info["has_gaps"]
+        "last_no_div_year": info["last_no_div_year"]
     }
 
 
@@ -316,7 +322,7 @@ def get_stock_info_batch(symbols: list[str], delay: float = 0.2, names: dict[str
             not_found.append(symbol)
             result[symbol] = {
                 "first_div_year": None,
-                "has_gaps": None,
+                "last_no_div_year": None,
                 "AL_ratio": None,
                 "year_loss": None,
                 "current_ratio": None,
@@ -340,6 +346,6 @@ def get_dividend_info_batch(symbols: list[str], delay: float = 0.2) -> dict[str,
     """
     full_info = get_stock_info_batch(symbols, delay)
     return {
-        sym: {"first_div_year": info["first_div_year"], "has_gaps": info["has_gaps"]}
+        sym: {"first_div_year": info["first_div_year"], "last_no_div_year": info["last_no_div_year"]}
         for sym, info in full_info.items()
     }
