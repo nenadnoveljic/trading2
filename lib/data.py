@@ -14,8 +14,11 @@ def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     """Merge PE and PB data files into a single DataFrame"""
     pe_df = pd.read_csv(pe_file, encoding='latin-1')
     pb_df = pd.read_csv(pb_file, encoding='latin-1')
-    
-    pe_df = pe_df[[SYMBOL, NAME, PE]]
+
+    pe_cols = [SYMBOL, NAME, PE]
+    if 'EPS' in pe_df.columns:
+        pe_cols.append('EPS')
+    pe_df = pe_df[pe_cols]
     pb_df = pb_df[[SYMBOL, PB, CURRENT_RATIO]]
 
     merged_df = pd.merge(pe_df, pb_df, on=SYMBOL)
