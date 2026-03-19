@@ -469,7 +469,7 @@ sorted_df = filtered_df.sort_values(by=['_sort_loss', PE_PB], ascending=[True, T
 sorted_df = sorted_df.drop(columns=['_sort_loss'])
 
 # Fetch stock info iteratively until we have MIN_DISPLAY_COUNT valid stocks
-MIN_DISPLAY_COUNT = 5
+MIN_DISPLAY_COUNT = 10
 BATCH_SIZE = 10
 
 all_stock_info = {}
@@ -688,11 +688,13 @@ display_df = display_df.rename(columns={
     'P / E': 'PE',
     'Price / Book Ratio': 'PB',
     'Current Ratio': 'CR',
-    'quartal_loss': 'q_loss',
+    'AL_ratio': 'AL',
+    'year_loss': 'y_loss',
     'first_div_year': '1st_div',
     'cash_debt_ok': 'cash_ok',
     'last_exclusion': 'last_excl',
 })
+display_df = display_df.drop(columns=['quartal_loss', 'EPS', PE_PB], errors='ignore')
 
 print(display_df.head(50))
 print(len(display_df))
