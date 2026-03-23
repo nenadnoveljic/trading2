@@ -469,7 +469,7 @@ sorted_df = filtered_df.sort_values(by=['_sort_loss', PE_PB], ascending=[True, T
 sorted_df = sorted_df.drop(columns=['_sort_loss'])
 
 # Fetch stock info iteratively until we have MIN_DISPLAY_COUNT valid stocks
-MIN_DISPLAY_COUNT = 10
+MIN_DISPLAY_COUNT = 20
 BATCH_SIZE = 10
 
 all_stock_info = {}
