@@ -1,5 +1,10 @@
 import time
+import datetime as _dt
 import yfinance as yf
+
+from lib.irbank import try_irbank_dividend_fields
+
+DIVIDEND_IRBANK_TTL = _dt.timedelta(days=90)
 
 
 class SymbolNotFoundError(Exception):
@@ -188,7 +193,21 @@ def _detect_year_loss(ticker) -> int | None:
     return None
 
 
-def get_stock_info(symbol: str) -> dict:
+def _use_pg_dividend_bundle(pg: dict | None) -> bool:
+    """True when dividend fields should come from Postgres (skip IRBANK / yfinance dividend fetch)."""
+    if not pg:
+        return False
+    if pg.get("first_div_year_verified"):
+        return True
+    if pg.get("dividend_data_source") == "irbank" and pg.get("dividend_cache_expires_at"):
+        exp = pg["dividend_cache_expires_at"]
+        if getattr(exp, "tzinfo", None) is None:
+            exp = exp.replace(tzinfo=_dt.timezone.utc)
+        return exp > _dt.datetime.now(_dt.timezone.utc)
+    return False
+
+
+def get_stock_info(symbol: str, dividend_pg_bundle: dict | None = None) -> dict:
     """
     Fetch financial information for a symbol.
     
@@ -224,26 +243,38 @@ def get_stock_info(symbol: str) -> dict:
             if balance_sheet.empty and financials.empty:
                 raise SymbolNotFoundError(f"Symbol {symbol} not found or delisted")
         
-        # Get dividend info
-        import datetime as _dt
-        divs = ticker.dividends
-        if len(divs) > 0:
-            first_year = divs.index.min().year
-            last_year = divs.index.max().year
-            result["first_div_year"] = first_year
-
-            dividend_years = set(divs.index.year)
-            cutoff_year = _dt.date.today().year - 20
-            check_start = max(first_year, cutoff_year)
-            if last_year > check_start:
-                expected_years = set(range(check_start, last_year + 1))
-                missing_years = expected_years - dividend_years
-                if missing_years:
-                    result["last_no_div_year"] = max(missing_years)
-                else:
-                    result["last_no_div_year"] = 0
+        # Dividend history: PG bundle if verified or unexpired irbank; else IRBANK then yfinance
+        if dividend_pg_bundle and _use_pg_dividend_bundle(dividend_pg_bundle):
+            result["first_div_year"] = dividend_pg_bundle.get("first_div_year")
+            result["last_no_div_year"] = dividend_pg_bundle.get("last_no_div_year")
+        else:
+            ir_div = try_irbank_dividend_fields(symbol)
+            if ir_div is not None:
+                result["first_div_year"] = ir_div["first_div_year"]
+                result["last_no_div_year"] = ir_div["last_no_div_year"]
+                result["dividend_data_source"] = "irbank"
+                result["dividend_cache_expires_at"] = _dt.datetime.now(_dt.timezone.utc) + DIVIDEND_IRBANK_TTL
             else:
-                result["last_no_div_year"] = 0
+                divs = ticker.dividends
+                if len(divs) > 0:
+                    first_year = divs.index.min().year
+                    last_year = divs.index.max().year
+                    result["first_div_year"] = first_year
+
+                    dividend_years = set(divs.index.year)
+                    cutoff_year = _dt.date.today().year - 20
+                    check_start = max(first_year, cutoff_year)
+                    if last_year > check_start:
+                        expected_years = set(range(check_start, last_year + 1))
+                        missing_years = expected_years - dividend_years
+                        if missing_years:
+                            result["last_no_div_year"] = max(missing_years)
+                        else:
+                            result["last_no_div_year"] = 0
+                    else:
+                        result["last_no_div_year"] = 0
+                    result["dividend_data_source"] = "yfinance"
+                    result["dividend_cache_expires_at"] = None
         
         # Get assets/liabilities ratio
         result["AL_ratio"] = get_assets_liabilities_ratio(symbol)
@@ -296,7 +327,12 @@ def get_dividend_info(symbol: str) -> dict:
     }
 
 
-def get_stock_info_batch(symbols: list[str], delay: float = 0.2, names: dict[str, str] = None) -> tuple[dict[str, dict], list[str]]:
+def get_stock_info_batch(
+    symbols: list[str],
+    delay: float = 0.2,
+    names: dict[str, str] | None = None,
+    pg_dividend_cache: dict[str, dict] | None = None,
+) -> tuple[dict[str, dict], list[str]]:
     """
     Fetch full stock info for multiple symbols.
     
@@ -304,6 +340,7 @@ def get_stock_info_batch(symbols: list[str], delay: float = 0.2, names: dict[str
         symbols: List of stock symbols
         delay: Delay between API calls in seconds
         names: Optional dict mapping symbol to company name for better error messages
+        pg_dividend_cache: Optional dict company_name -> row from get_stock_info_cache (dividend TTL / verified)
     
     Returns:
         Tuple of:
@@ -314,7 +351,12 @@ def get_stock_info_batch(symbols: list[str], delay: float = 0.2, names: dict[str
     not_found = []
     for i, symbol in enumerate(symbols):
         try:
-            result[symbol] = get_stock_info(symbol)
+            div_bundle = None
+            if names and pg_dividend_cache:
+                cname = names.get(symbol)
+                if cname:
+                    div_bundle = pg_dividend_cache.get(cname)
+            result[symbol] = get_stock_info(symbol, dividend_pg_bundle=div_bundle)
         except SymbolNotFoundError:
             name = names.get(symbol, '') if names else ''
             name_str = f" ({name})" if name else ""
@@ -344,7 +386,7 @@ def get_dividend_info_batch(symbols: list[str], delay: float = 0.2) -> dict[str,
     Returns:
         Dictionary mapping symbol to dividend info dict
     """
-    full_info = get_stock_info_batch(symbols, delay)
+    full_info, _ = get_stock_info_batch(symbols, delay)
     return {
         sym: {"first_div_year": info["first_div_year"], "last_no_div_year": info["last_no_div_year"]}
         for sym, info in full_info.items()

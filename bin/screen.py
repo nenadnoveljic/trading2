@@ -200,7 +200,8 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
 
     placeholders = ','.join(['%s'] * len(company_names))
     cursor.execute(f"""
-        SELECT company_name, last_year_loss, first_div_year, last_no_div_year, first_div_year_verified
+        SELECT company_name, last_year_loss, first_div_year, last_no_div_year, first_div_year_verified,
+               dividend_data_source, dividend_cache_expires_at
         FROM companies
         WHERE company_name IN ({placeholders})
     """, company_names)
@@ -212,6 +213,8 @@ def get_stock_info_cache(company_names: list[str]) -> dict[str, dict]:
             'first_div_year': row[2],
             'last_no_div_year': row[3],  # int or None
             'first_div_year_verified': row[4],  # bool
+            'dividend_data_source': row[5],
+            'dividend_cache_expires_at': row[6],
         }
 
     cursor.close()
@@ -227,17 +230,25 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
     Caches any non-None int for year_loss and last_no_div_year (uses GREATEST logic to never downgrade).
     Also caches: first_div_year
     Does NOT cache: AL_ratio (always fetch fresh)
+
+    When stock_info contains dividend_data_source (irbank | yfinance), updates the dividend bundle
+    authoritatively and sets dividend_cache_expires_at (90 days for irbank, NULL for yfinance).
     """
     conn = get_connection()
     cursor = conn.cursor()
     git_commit = get_git_commit()
+
+    stock_info = dict(stock_info)
+    div_source = stock_info.pop('dividend_data_source', None)
+    div_expires = stock_info.pop('dividend_cache_expires_at', None)
+    bundle_update = div_source is not None
 
     year_loss = stock_info.get('year_loss')  # int or None; cache if not None
     last_no_div_year = stock_info.get('last_no_div_year')  # int or None; cache if not None
     first_div_year = stock_info.get('first_div_year')
 
     # Skip if nothing to cache
-    if year_loss is None and last_no_div_year is None and first_div_year is None:
+    if year_loss is None and last_no_div_year is None and first_div_year is None and not bundle_update:
         cursor.close()
         conn.close()
         return
@@ -246,28 +257,55 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
     row = cursor.fetchone()
 
     if row:
-        cursor.execute("""
-            UPDATE companies
-            SET last_year_loss = CASE
-                    WHEN %s IS NOT NULL AND %s > COALESCE(last_year_loss, -1) THEN %s
-                    ELSE last_year_loss
-                END,
-                last_no_div_year = CASE
-                    WHEN %s IS NOT NULL AND %s > COALESCE(last_no_div_year, -1) THEN %s
-                    ELSE last_no_div_year
-                END,
-                first_div_year = COALESCE(%s, first_div_year),
-                updated_at = NOW(),
-                updated_by = %s
-            WHERE id = %s
-        """, (year_loss, year_loss, year_loss,
-              last_no_div_year, last_no_div_year, last_no_div_year,
-              first_div_year, git_commit, row[0]))
+        if bundle_update:
+            cursor.execute("""
+                UPDATE companies
+                SET last_year_loss = CASE
+                        WHEN %s IS NOT NULL AND %s > COALESCE(last_year_loss, -1) THEN %s
+                        ELSE last_year_loss
+                    END,
+                    last_no_div_year = COALESCE(%s, last_no_div_year),
+                    first_div_year = COALESCE(%s, first_div_year),
+                    dividend_data_source = %s,
+                    dividend_cache_expires_at = %s,
+                    updated_at = NOW(),
+                    updated_by = %s
+                WHERE id = %s
+            """, (year_loss, year_loss, year_loss,
+                  last_no_div_year, first_div_year,
+                  div_source, div_expires, git_commit, row[0]))
+        else:
+            cursor.execute("""
+                UPDATE companies
+                SET last_year_loss = CASE
+                        WHEN %s IS NOT NULL AND %s > COALESCE(last_year_loss, -1) THEN %s
+                        ELSE last_year_loss
+                    END,
+                    last_no_div_year = CASE
+                        WHEN %s IS NOT NULL AND %s > COALESCE(last_no_div_year, -1) THEN %s
+                        ELSE last_no_div_year
+                    END,
+                    first_div_year = COALESCE(%s, first_div_year),
+                    updated_at = NOW(),
+                    updated_by = %s
+                WHERE id = %s
+            """, (year_loss, year_loss, year_loss,
+                  last_no_div_year, last_no_div_year, last_no_div_year,
+                  first_div_year, git_commit, row[0]))
     else:
-        cursor.execute("""
-            INSERT INTO companies (company_name, last_year_loss, last_no_div_year, first_div_year, updated_at, updated_by)
-            VALUES (%s, %s, %s, %s, NOW(), %s)
-        """, (company_name, year_loss, last_no_div_year, first_div_year, git_commit))
+        if bundle_update:
+            cursor.execute("""
+                INSERT INTO companies (
+                    company_name, last_year_loss, last_no_div_year, first_div_year,
+                    dividend_data_source, dividend_cache_expires_at, updated_at, updated_by
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+            """, (company_name, year_loss, last_no_div_year, first_div_year, div_source, div_expires, git_commit))
+        else:
+            cursor.execute("""
+                INSERT INTO companies (company_name, last_year_loss, last_no_div_year, first_div_year, updated_at, updated_by)
+                VALUES (%s, %s, %s, %s, NOW(), %s)
+            """, (company_name, year_loss, last_no_div_year, first_div_year, git_commit))
 
     conn.commit()
     cursor.close()
@@ -498,7 +536,9 @@ while True:
     stock_info_cache = get_stock_info_cache(list(top_names.values()))
     
     # Fetch from yfinance
-    stock_info, not_found_symbols = get_stock_info_batch(candidates, names=top_names)
+    stock_info, not_found_symbols = get_stock_info_batch(
+        candidates, names=top_names, pg_dividend_cache=stock_info_cache
+    )
     
     # Process not found symbols
     for symbol in not_found_symbols:
@@ -518,12 +558,14 @@ while True:
             fresh_year = stock_info[symbol].get('year_loss')
             if cached_year is not None and (fresh_year is None or cached_year > fresh_year):
                 stock_info[symbol]['year_loss'] = cached_year
-            cached_div = cached.get('last_no_div_year')
-            fresh_div = stock_info[symbol].get('last_no_div_year')
-            if cached_div is not None and (fresh_div is None or cached_div > fresh_div):
-                stock_info[symbol]['last_no_div_year'] = cached_div
-            if cached.get('first_div_year') is not None:
-                stock_info[symbol]['first_div_year'] = cached['first_div_year']
+            # Do not overwrite dividend bundle from a fresh IRBANK/yfinance fetch this run
+            if 'dividend_data_source' not in stock_info[symbol]:
+                cached_div = cached.get('last_no_div_year')
+                fresh_div = stock_info[symbol].get('last_no_div_year')
+                if cached_div is not None and (fresh_div is None or cached_div > fresh_div):
+                    stock_info[symbol]['last_no_div_year'] = cached_div
+                if cached.get('first_div_year') is not None:
+                    stock_info[symbol]['first_div_year'] = cached['first_div_year']
     
     # Process each symbol
     for symbol in candidates:
