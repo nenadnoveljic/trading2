@@ -2,7 +2,7 @@ import time
 import datetime as _dt
 import yfinance as yf
 
-from lib.irbank import try_irbank_dividend_fields
+from lib.irbank import try_irbank_fiscal_fields
 
 DIVIDEND_IRBANK_TTL = _dt.timedelta(days=90)
 
@@ -244,18 +244,36 @@ def get_stock_info(symbol: str, dividend_pg_bundle: dict | None = None) -> dict:
                 raise SymbolNotFoundError(f"Symbol {symbol} not found or delisted")
         
         # Dividend history: PG bundle if verified or unexpired irbank; else IRBANK then yfinance
-        if dividend_pg_bundle and _use_pg_dividend_bundle(dividend_pg_bundle):
+        using_pg_dividend_bundle = bool(
+            dividend_pg_bundle and _use_pg_dividend_bundle(dividend_pg_bundle)
+        )
+        if using_pg_dividend_bundle:
             result["first_div_year"] = dividend_pg_bundle.get("first_div_year")
             result["last_no_div_year"] = dividend_pg_bundle.get("last_no_div_year")
+            result["year_loss"] = dividend_pg_bundle.get("year_loss")
+            # Postgres bundle predates IRBANK 会社業績; refresh loss year from the same page as dividends.
+            if symbol.endswith(".T"):
+                ir_supp = try_irbank_fiscal_fields(symbol)
+                if ir_supp is not None and ir_supp["year_loss"] is not None:
+                    pg_y = result["year_loss"]
+                    ir_y = ir_supp["year_loss"]
+                    loss_years = [y for y in (pg_y, ir_y) if y is not None and y > 0]
+                    if loss_years:
+                        result["year_loss"] = max(loss_years)
+                    elif ir_y == 0:
+                        result["year_loss"] = 0
+                    if ir_supp["first_div_year"] is not None or ir_supp["year_loss"] is not None:
+                        result["dividend_data_source"] = "irbank"
+                        result["dividend_cache_expires_at"] = (
+                            _dt.datetime.now(_dt.timezone.utc) + DIVIDEND_IRBANK_TTL
+                        )
         else:
-            ir_div = try_irbank_dividend_fields(symbol)
-            if ir_div is not None:
-                result["first_div_year"] = ir_div["first_div_year"]
-                result["last_no_div_year"] = ir_div["last_no_div_year"]
-                result["dividend_data_source"] = "irbank"
-                result["dividend_cache_expires_at"] = _dt.datetime.now(_dt.timezone.utc) + DIVIDEND_IRBANK_TTL
+            ir = try_irbank_fiscal_fields(symbol)
+            divs = ticker.dividends
+            if ir is not None and ir["first_div_year"] is not None:
+                result["first_div_year"] = ir["first_div_year"]
+                result["last_no_div_year"] = ir["last_no_div_year"]
             else:
-                divs = ticker.dividends
                 if len(divs) > 0:
                     first_year = divs.index.min().year
                     last_year = divs.index.max().year
@@ -273,15 +291,26 @@ def get_stock_info(symbol: str, dividend_pg_bundle: dict | None = None) -> dict:
                             result["last_no_div_year"] = 0
                     else:
                         result["last_no_div_year"] = 0
-                    result["dividend_data_source"] = "yfinance"
-                    result["dividend_cache_expires_at"] = None
-        
+
+            if ir is not None and ir["year_loss"] is not None:
+                result["year_loss"] = ir["year_loss"]
+            else:
+                result["year_loss"] = _detect_year_loss(ticker)
+
+            irbank_snapshot = ir is not None and (
+                ir["first_div_year"] is not None or ir["year_loss"] is not None
+            )
+            if irbank_snapshot:
+                result["dividend_data_source"] = "irbank"
+                result["dividend_cache_expires_at"] = (
+                    _dt.datetime.now(_dt.timezone.utc) + DIVIDEND_IRBANK_TTL
+                )
+            elif (ir is None or ir["first_div_year"] is None) and len(divs) > 0:
+                result["dividend_data_source"] = "yfinance"
+                result["dividend_cache_expires_at"] = None
+
         # Get assets/liabilities ratio
         result["AL_ratio"] = get_assets_liabilities_ratio(symbol)
-        
-        # Check for annual losses
-        # Try multiple data sources; quarterly fallback when annual is empty (e.g. Canadian tickers)
-        result["year_loss"] = _detect_year_loss(ticker)
         
         # Get current ratio from info
         if info and 'currentRatio' in info and info['currentRatio'] is not None:

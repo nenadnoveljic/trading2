@@ -554,12 +554,12 @@ while True:
         company_name = top_names[symbol]
         if company_name in stock_info_cache:
             cached = stock_info_cache[company_name]
-            cached_year = cached.get('year_loss')
-            fresh_year = stock_info[symbol].get('year_loss')
-            if cached_year is not None and (fresh_year is None or cached_year > fresh_year):
-                stock_info[symbol]['year_loss'] = cached_year
-            # Do not overwrite dividend bundle from a fresh IRBANK/yfinance fetch this run
+            # Do not overwrite dividend bundle or year_loss from a fresh IRBANK/yfinance fetch this run
             if 'dividend_data_source' not in stock_info[symbol]:
+                cached_year = cached.get('year_loss')
+                fresh_year = stock_info[symbol].get('year_loss')
+                if cached_year is not None and (fresh_year is None or cached_year > fresh_year):
+                    stock_info[symbol]['year_loss'] = cached_year
                 cached_div = cached.get('last_no_div_year')
                 fresh_div = stock_info[symbol].get('last_no_div_year')
                 if cached_div is not None and (fresh_div is None or cached_div > fresh_div):
