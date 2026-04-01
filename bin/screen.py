@@ -460,6 +460,8 @@ def defer_company_for_cash_debt(company_name: str) -> bool:
 
 CURRENT_RATIO_THRESHOLD = 1.5
 AL_RATIO_THRESHOLD = 1.5
+# Temporary: set True to defer/exclude when AL_ratio < AL_RATIO_THRESHOLD
+AL_RATIO_FILTER_ENABLED = False
 YEAR_LOSS_LOOKBACK = 20
 FIRST_DIV_HISTORY_YEARS = 10
 
@@ -522,12 +524,14 @@ all_excluded_short_div_history = []
 # Track which symbols we've already processed
 processed_symbols = set()
 remaining_df = sorted_df.copy()
+screener_loop_stop_reason = "unknown"
 
 while True:
     # Get next batch of unprocessed symbols
     candidates = remaining_df[~remaining_df[SYMBOL].isin(processed_symbols)][SYMBOL].head(BATCH_SIZE).tolist()
     
     if not candidates:
+        screener_loop_stop_reason = "no_more_candidates"
         break  # No more candidates
     
     top_names = remaining_df[remaining_df[SYMBOL].isin(candidates)][[SYMBOL, NAME]].set_index(SYMBOL)[NAME].to_dict()
@@ -576,11 +580,12 @@ while True:
         company_name = top_names[symbol]
         
         # Check AL_ratio
-        al_ratio = info.get('AL_ratio')
-        if al_ratio is not None and al_ratio < AL_RATIO_THRESHOLD:
-            if defer_company_for_al_ratio(company_name, al_ratio):
-                all_deferred_al_ratio.append((symbol, company_name, al_ratio))
-            all_excluded.add(symbol)
+        if AL_RATIO_FILTER_ENABLED:
+            al_ratio = info.get('AL_ratio')
+            if al_ratio is not None and al_ratio < AL_RATIO_THRESHOLD:
+                if defer_company_for_al_ratio(company_name, al_ratio):
+                    all_deferred_al_ratio.append((symbol, company_name, al_ratio))
+                all_excluded.add(symbol)
         
         # Check year_loss (exclude if loss within last YEAR_LOSS_LOOKBACK years)
         current_year = datetime.date.today().year
@@ -621,7 +626,10 @@ while True:
     # Check if we have enough valid stocks
     valid_count = len(processed_symbols - all_excluded)
     if valid_count >= MIN_DISPLAY_COUNT:
+        screener_loop_stop_reason = "reached_min_display"
         break
+
+valid_pre_final = len(processed_symbols - all_excluded)
 
 # Print summaries
 if all_deferred_not_found:
@@ -678,6 +686,14 @@ if survivors:
         db_first_div = cached.get('first_div_year')
         if cached.get('first_div_year_verified') and db_first_div is not None and db_first_div > (current_year - FIRST_DIV_HISTORY_YEARS):
             all_excluded.add(symbol)
+
+valid_post_final = len(processed_symbols - all_excluded)
+print(
+    f"\n[Screener] stop={screener_loop_stop_reason} "
+    f"valid_pre_final={valid_pre_final} valid_after_db_recheck={valid_post_final} "
+    f"target={MIN_DISPLAY_COUNT} symbols_tried={len(processed_symbols)}",
+    flush=True,
+)
 
 # Add info columns for processed symbols
 sorted_df = sorted_df.copy()

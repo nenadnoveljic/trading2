@@ -87,7 +87,7 @@ for filename in os.listdir(DOWNLOAD_DIR):
 
 # Set up the web driver with correct ChromeDriver version
 # Connect to manually started Chrome browser
-# "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug &
+# "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug >/dev/null 2>&1 &
 
 # Let webdriver-manager download a ChromeDriver matching the installed Chrome
 # Pin to ChromeDriver 145 to match Chrome 145 (update if Chrome is upgraded)
