@@ -460,8 +460,8 @@ def defer_company_for_cash_debt(company_name: str) -> bool:
 
 CURRENT_RATIO_THRESHOLD = 1.5
 AL_RATIO_THRESHOLD = 1.5
-# Temporary: set True to defer/exclude when AL_ratio < AL_RATIO_THRESHOLD
-AL_RATIO_FILTER_ENABLED = False
+# When True, defer 6 months when AL_ratio < AL_RATIO_THRESHOLD
+AL_RATIO_FILTER_ENABLED = True
 YEAR_LOSS_LOOKBACK = 20
 FIRST_DIV_HISTORY_YEARS = 10
 
