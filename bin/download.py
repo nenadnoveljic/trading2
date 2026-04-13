@@ -89,9 +89,9 @@ for filename in os.listdir(DOWNLOAD_DIR):
 # Connect to manually started Chrome browser
 # "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir=/tmp/chrome_debug >/dev/null 2>&1 &
 
-# Let webdriver-manager download a ChromeDriver matching the installed Chrome
-# Pin to ChromeDriver 145 to match Chrome 145 (update if Chrome is upgraded)
-service = Service(ChromeDriverManager(driver_version="145.0.7605.0").install())
+# Let webdriver-manager download a ChromeDriver matching the installed Chrome.
+# Do not pin driver_version; a pinned mismatch causes SessionNotCreatedException.
+service = Service(ChromeDriverManager().install())
 options = webdriver.ChromeOptions()
 options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 driver = webdriver.Chrome(service=service, options=options)
