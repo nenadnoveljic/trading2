@@ -24,6 +24,13 @@ def get_connection():
     return psycopg2.connect(dbname=DB_NAME, host=DB_HOST)
 
 
+def _deferral_still_active(dont_until: datetime.datetime | None) -> bool:
+    """True if dont_consider_until is strictly in the future (aligned with PostgreSQL NOW())."""
+    if dont_until is None:
+        return False
+    return dont_until > datetime.datetime.now()
+
+
 def get_exclusion_reason_id(code: str) -> int | None:
     """Get exclusion reason ID by code from the exclusion_reasons table."""
     conn = get_connection()
@@ -335,12 +342,12 @@ def defer_company_for_al_ratio(company_name: str, al_ratio: float) -> bool:
     
     if row:
         company_id, dont_until, existing_reason_id = row
-        # Already deferred for AL ratio - skip
-        if dont_until and existing_reason_id == reason_id:
+        # Skip only while the same deferral is still active (expired deferrals must renew)
+        if _deferral_still_active(dont_until) and existing_reason_id == reason_id:
             cursor.close()
             conn.close()
             return False
-        
+
         # Update existing company
         cursor.execute("""
             UPDATE companies 
@@ -385,12 +392,12 @@ def defer_company_for_not_found(company_name: str) -> bool:
     
     if row:
         company_id, dont_until, existing_reason_id = row
-        # Already deferred for not_tradeable - skip
-        if dont_until and existing_reason_id == reason_id:
+        # Skip only while quote_not_found deferral is still active
+        if _deferral_still_active(dont_until) and existing_reason_id == reason_id:
             cursor.close()
             conn.close()
             return False
-        
+
         cursor.execute("""
             UPDATE companies 
             SET dont_consider_until = NOW() + INTERVAL '1 month',
@@ -433,11 +440,11 @@ def defer_company_for_cash_debt(company_name: str) -> bool:
     
     if row:
         company_id, dont_until, existing_reason_id = row
-        if dont_until and existing_reason_id == reason_id:
+        if _deferral_still_active(dont_until) and existing_reason_id == reason_id:
             cursor.close()
             conn.close()
             return False
-        
+
         cursor.execute("""
             UPDATE companies 
             SET dont_consider_until = NOW() + INTERVAL '3 months',

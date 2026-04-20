@@ -389,7 +389,7 @@ def get_stock_info_batch(
         except SymbolNotFoundError:
             name = names.get(symbol, '') if names else ''
             name_str = f" ({name})" if name else ""
-            print(f"  -> {symbol}{name_str}: quote not found, deferring for 1 month")
+            print(f"  -> {symbol}{name_str}: quote not found")
             not_found.append(symbol)
             result[symbol] = {
                 "first_div_year": None,
