@@ -9,6 +9,7 @@ PB = 'Price / Book Ratio'
 PE_PB = 'PE*PB'
 SYMBOL = 'Symbol'
 CURRENT_RATIO = 'Current Ratio'
+PRICE = 'Price'
 
 def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     """Merge PE and PB data files into a single DataFrame"""
@@ -18,6 +19,8 @@ def get_merged_pd(pe_file: str, pb_file: str) -> pd.DataFrame:
     pe_cols = [SYMBOL, NAME, PE]
     if 'EPS' in pe_df.columns:
         pe_cols.append('EPS')
+    if PRICE in pe_df.columns:
+        pe_cols.append(PRICE)
     pe_df = pe_df[pe_cols]
     pb_df = pb_df[[SYMBOL, PB, CURRENT_RATIO]]
 
