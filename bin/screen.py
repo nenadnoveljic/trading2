@@ -12,7 +12,9 @@ from lib.dividends import get_stock_info_batch
 from lib.git_utils import get_git_commit
 
 pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 200)
+# Full company names in CSVs are long; default max_colwidth truncates with "..."
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.width', None)
 
 # Database connection settings
 DB_NAME = "stocks"
@@ -271,7 +273,10 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
                         WHEN %s IS NOT NULL AND %s > COALESCE(last_year_loss, -1) THEN %s
                         ELSE last_year_loss
                     END,
-                    last_no_div_year = COALESCE(%s, last_no_div_year),
+                    last_no_div_year = CASE
+                        WHEN %s IS NOT NULL AND %s > COALESCE(last_no_div_year, -1) THEN %s
+                        ELSE last_no_div_year
+                    END,
                     first_div_year = COALESCE(%s, first_div_year),
                     dividend_data_source = %s,
                     dividend_cache_expires_at = %s,
@@ -279,7 +284,8 @@ def update_stock_info_cache(company_name: str, stock_info: dict):
                     updated_by = %s
                 WHERE id = %s
             """, (year_loss, year_loss, year_loss,
-                  last_no_div_year, first_div_year,
+                  last_no_div_year, last_no_div_year, last_no_div_year,
+                  first_div_year,
                   div_source, div_expires, git_commit, row[0]))
         else:
             cursor.execute("""
@@ -565,18 +571,20 @@ while True:
         company_name = top_names[symbol]
         if company_name in stock_info_cache:
             cached = stock_info_cache[company_name]
-            # Do not overwrite dividend bundle or year_loss from a fresh IRBANK/yfinance fetch this run
+            # Do not overwrite year_loss / first_div from cache when fresh IRBANK/yfinance dividend bundle is attached
             if 'dividend_data_source' not in stock_info[symbol]:
                 cached_year = cached.get('year_loss')
                 fresh_year = stock_info[symbol].get('year_loss')
                 if cached_year is not None and (fresh_year is None or cached_year > fresh_year):
                     stock_info[symbol]['year_loss'] = cached_year
-                cached_div = cached.get('last_no_div_year')
-                fresh_div = stock_info[symbol].get('last_no_div_year')
-                if cached_div is not None and (fresh_div is None or cached_div > fresh_div):
-                    stock_info[symbol]['last_no_div_year'] = cached_div
                 if cached.get('first_div_year') is not None:
                     stock_info[symbol]['first_div_year'] = cached['first_div_year']
+
+            # Always merge last_no_div_year: Postgres may hold a verified gap while yfinance/IRBANK returns 0.
+            cached_div = cached.get('last_no_div_year')
+            fresh_div = stock_info[symbol].get('last_no_div_year')
+            if cached_div is not None and (fresh_div is None or cached_div > fresh_div):
+                stock_info[symbol]['last_no_div_year'] = cached_div
     
     # Process each symbol
     for symbol in candidates:

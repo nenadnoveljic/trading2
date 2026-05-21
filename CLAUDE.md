@@ -49,8 +49,6 @@ Key tables:
 - `exclusion_reasons` — lookup for permanent vs. temporary deferral codes
 - `stock_markets` — markets with optional `not_tradeable_until` (skips entire suffix)
 
-Migrations are in `db/migrations/` and must be applied manually in order.
-
 ### Filtering Rules (in `lib/dividends.py` + `bin/screen.py`)
 
 | Condition | Action |
