@@ -49,6 +49,7 @@ Key tables:
 - `exclusion_reasons` — lookup for permanent vs. temporary deferral codes
 - `stock_markets` — markets with optional `not_tradeable_until` (skips entire suffix)
 
+
 ### Filtering Rules (in `lib/dividends.py` + `bin/screen.py`)
 
 | Condition | Action |
@@ -69,3 +70,7 @@ MarketInOut uses different suffixes than yfinance. The map in `lib/dividends.py`
 - `AL_RATIO_THRESHOLD = 1.5`
 - `BATCH_SIZE = 10`
 - `MIN_DISPLAY_COUNT = 5`
+
+## Database Operations
+
+For database record updates, prefer direct SQL/ORM updates over creating migrations unless schema changes are required. Confirm the approach with the user before exploring migration files.
