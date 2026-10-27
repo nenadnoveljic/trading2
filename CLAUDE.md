@@ -74,3 +74,5 @@ MarketInOut uses different suffixes than yfinance. The map in `lib/dividends.py`
 ## Database Operations
 
 For database record updates, prefer direct SQL/ORM updates over creating migrations unless schema changes are required. Confirm the approach with the user before exploring migration files.
+
+When the user provides verified facts about a company (e.g., first dividend year, disqualification reason), always apply the update to the database immediately without asking for confirmation.
